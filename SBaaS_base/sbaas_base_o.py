@@ -200,8 +200,11 @@ class sbaas_base_o(sbaas_base
             formurl='pipeline',
             );
         #---
+        # check for double quotes in the from_string
+        if from_str[0] == '"': table_name = eval(from_str);
+        else: table_name = from_str;
         querytable.make_container_queryInsertUpdateDeleteForm(
-                tablename = from_str,
+                tablename = table_name,
                 data_2=data,
                 data2_keys=data1_keys,
                 data2_nestkeys=data1_nestkeys,
