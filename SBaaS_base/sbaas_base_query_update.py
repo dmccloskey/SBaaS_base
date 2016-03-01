@@ -144,7 +144,15 @@ class sbaas_base_query_update(sbaas_base_query_select):
                     query = {};
                     query['update']=[{'model':model_I}];
                     query['where'] = self.make_whereFromPrimaryKeys(model_I,primary_keys,d);
-                    query['set']=[{'model':model_I,'values_dict':d}];
+                    ##remove columns that are not in the model
+                    #d_keys = list(d.keys());
+                    #for key in d_keys:
+                    #    if not key in model_columns:
+                    #        d.pop(key,None);
+                    #query['set']=[{'model':model_I,'values_dict':d}];
+                    #convert to update dict
+                    input_dict = self.convert_dict2UpdateDict(d,model_columns);
+                    query['set']=[{'model':model_I,'values_dict':input_dict}];
                     self.update_row_sqlalchemyModel(query,verbose_I=False,raise_I=raise_I);
                 except IntegrityError as e:
                     if raise_I: raise;

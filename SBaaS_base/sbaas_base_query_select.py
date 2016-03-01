@@ -70,6 +70,22 @@ class sbaas_base_query_select(sbaas_base):
         tablename_O = model_I.__tablename__;
         return tablename_O;
 
+    def get_columnAttributeDataType_sqlalchemyModel(self,
+        model_I,column_I):
+        '''Query column names for a given sqlalchemyModel
+        INPUT:
+        model_I = sqlalchemy class object
+        column_I = string
+        OUTPUT:
+        columntype_O = data type of column
+        '''
+        try:
+            columnattr = self.get_columnAttribute_sqlalchemyModel(model_I,column_I);
+            columntype_O = columnattr.prop.columns[0].type
+            return columntype_O;
+        except SQLAlchemyError as e:
+            print(e);
+
     def get_columnAttribute_sqlalchemyModel(self,
         model_I,column_I):
         '''Query column names for a given sqlalchemyModel
@@ -428,9 +444,14 @@ class sbaas_base_query_select(sbaas_base):
             tablename = self.get_tableName_sqlalchemyModel(row['model']);
             columnname = self.make_tableColumnStr(tablename,row['column_name']);
             #TODO: validate the operator
-            #TODO: validate the value
+            #TODO: validate the value (DATE, JSON, ARRAY, etc.,)
+            columntype = self.get_columnAttributeDataType_sqlalchemyModel(row['model'],row['column_name']);
+            if 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
+                value = self.convert_string2StringString(row['value']);
+            else:
+                value = row['value']
             #TODO: validate the connector
-            clause = ("%s %s %s %s " %(columnname,row['operator'],row['value'],row['connector']));
+            clause = ("%s %s %s %s " %(columnname,row['operator'],value,row['connector']));
             where_str += clause;
         if where_I[-1]['connector']=='AND':
             where_str = where_str[:-5]; #remove trailing 'AND'
