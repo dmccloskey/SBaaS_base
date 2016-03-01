@@ -429,6 +429,63 @@ class sbaas_base_query_select(sbaas_base):
             print(e);
         return select_O
 
+    def check_whereOperator(self,operator_I):
+        '''
+        check the where comparison operator
+        INPUT:
+        operator_I = string
+        OUTPUT:
+        operator_O = string
+        '''
+        supported_operators = [
+            "<", ">", "<=", ">=" , "=", "!=",
+            "BETWEEN", "NOT BETWEEN",
+            "LIKE", "NOT LIKE",
+            "ILIKE", "NOT ILIKE",
+            "IS", "IS NOT",
+            "IS DISTINCT FROM", "IS NOT DISTINCT FROM",
+            "IN", "NOT IN",
+			];
+        if operator_I in supported_operators:
+            operator_O = operator_I;
+        else:
+            operator_O = None;
+        return operator_O;
+
+    def check_whereConnector(self,connector_I):
+        '''
+        check the where connector
+        INPUT:
+        connector_I = string
+        OUTPUT:
+        connector_O = string
+        '''
+        supported_connectors = ["AND","OR"
+			];
+        if connector_I in supported_connectors:
+            connector_O = connector_I;
+        else:
+            connector_O = None;
+        return connector_O;
+
+    def check_whereValue(self,model_I,column_name_I,value_I):
+        '''
+        check the where value
+        INPUT:
+        model_I = sqlalchemy model object
+        column_name_I = string, name of the column
+        value_I = string
+        OUTPUT:
+        value_O = string, in the correct format for the value
+        '''
+        #TODO: validate the value (DATE, JSON, ARRAY, etc.,)
+        columntype = self.get_columnAttributeDataType_sqlalchemyModel(model_I,column_name_I);
+        if 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
+            value_O = self.convert_string2StringString(value_I);
+        else:
+            value_O = row['value'];
+        return value_O;
+
     def make_where(self,where_I):
         '''make the where clause
         TODO:
@@ -443,15 +500,13 @@ class sbaas_base_query_select(sbaas_base):
         for row in where_I:
             tablename = self.get_tableName_sqlalchemyModel(row['model']);
             columnname = self.make_tableColumnStr(tablename,row['column_name']);
-            #TODO: validate the operator
-            #TODO: validate the value (DATE, JSON, ARRAY, etc.,)
-            columntype = self.get_columnAttributeDataType_sqlalchemyModel(row['model'],row['column_name']);
-            if 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
-                value = self.convert_string2StringString(row['value']);
-            else:
-                value = row['value']
-            #TODO: validate the connector
-            clause = ("%s %s %s %s " %(columnname,row['operator'],value,row['connector']));
+            #validate the operator
+            operator = self.check_whereOperator(row['operator']);
+            #validate the value
+            value = self.check_whereValue(row['model'],row['column_name'],row['value']);
+            #validate the connector
+            connector = self.check_whereConnector(row['connector']);
+            clause = ("%s %s %s %s " %(columnname,operator,value,connector));
             where_str += clause;
         if where_I[-1]['connector']=='AND':
             where_str = where_str[:-5]; #remove trailing 'AND'
