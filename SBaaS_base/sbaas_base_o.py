@@ -153,9 +153,17 @@ class sbaas_base_o(sbaas_base
 
         # dump chart parameters to a js files
         if data1_keys is None or not data1_keys:
-            data1_keys=list(data[0].keys());
+            if data:
+                data1_keys=list(data[0].keys());
+            else:
+                data1_keys=[];
+                for model in table_model_I.values():
+                    data1_keys.extend(queryselect.get_columns_sqlalchemyModel(model));
         if data1_nestkeys is None or not data1_nestkeys:
-            data1_nestkeys = [list(data[0].keys())[0]];
+            if data:
+                data1_nestkeys = [list(data[0].keys())[0]];
+            else:
+                data1_nestkeys = [queryselect.get_columns_sqlalchemyModel(list(table_model_I.values())[0])[0]];
         if data1_keymap is None or not data1_keymap:
             data1_keymap = {};
         if tabletileheader is None or not tabletileheader:

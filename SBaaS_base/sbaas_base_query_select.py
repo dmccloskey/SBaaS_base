@@ -483,7 +483,7 @@ class sbaas_base_query_select(sbaas_base):
         if 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
             value_O = self.convert_string2StringString(value_I);
         else:
-            value_O = row['value'];
+            value_O = value_I;
         return value_O;
 
     def make_where(self,where_I):
