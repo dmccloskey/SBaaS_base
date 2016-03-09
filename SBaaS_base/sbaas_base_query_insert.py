@@ -44,3 +44,22 @@ class sbaas_base_query_insert(sbaas_base_query_select):
                 if raise_I: raise;
                 else: print(e);
 
+    def execute_insert(self,query_I,raise_I=False):
+        '''execute a raw sql query
+        INPUT:
+        query_I = string or sqlalchemy text or sqlalchemy select
+        raise_I = boolean, raise error
+
+        '''
+        try:
+            ans = self.session.execute(query_I);
+            self.session.commit();
+        except SQLAlchemyError as e:
+            self.session.rollback();
+            if raise_I: raise;
+            else: print(e);
+        except Exception as e:
+            self.session.rollback();
+            if raise_I: raise;
+            else: print(e);
+

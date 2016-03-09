@@ -22,7 +22,7 @@ class sbaas_base_query_delete(sbaas_base_query_select):
                 where_cmd = self.make_where(query_I['where']);
             if not delete_cmd is None and not where_cmd is None:
                 #query_cmd = select(delete_cmd).where(where_cmd);
-                self.execute_delete(delete_cmd,where_cmd,warn_I=warn_I,raise_I=raise_I);
+                self.execute_deleteCmd(delete_cmd,where_cmd,warn_I=warn_I,raise_I=raise_I);
                 #reset = delete_cmd.delete().where(where_cmd);
         except SQLAlchemyError as e:
             if raise_I: raise;
@@ -39,10 +39,13 @@ class sbaas_base_query_delete(sbaas_base_query_select):
         delete_from_O = delete_from_I[0]['model'];
         return delete_from_O
 
-    def execute_delete(self,delete_cmd,where_cmd,warn_I=True,raise_I=False):
+    def execute_deleteCmd(self,delete_cmd,where_cmd,warn_I=True,raise_I=False):
         '''execute a raw sql query
         INPUT:
-        query_I = string or sqlalchemy text or sqlalchemy select
+        delete_cmd
+        where_cmd
+        warn_I
+        raise_I
         OUTPUT:
         data_O = keyed tuple sqlalchemy object
         '''
@@ -83,3 +86,29 @@ class sbaas_base_query_delete(sbaas_base_query_select):
                 except Exception as e:
                     if raise_I: raise;
                     else: print(e);
+
+    def execute_delete(self,query_I,warn_I=False,raise_I=False):
+        '''execute a raw sql query
+        INPUT:
+        query_I = string or sqlalchemy text or sqlalchemy select
+        raise_I = boolean, raise error
+        OUTPUT:
+        data_O = keyed tuple sqlalchemy object
+        '''
+        try:
+            reset = self.session.execute(query_I);            
+            if warn_I:
+                # warn the user
+                print(str(reset) + ' deleted');
+                yorno = input("commit delete? [y/n]: ");
+                if yorno == 'y':
+                    self.session.commit();
+                else:
+                    self.session.rollback();
+            else:
+                self.session.commit();
+        except SQLAlchemyError as e:
+            self.session.rollback();
+            if raise_I: raise;
+            else: print(e);
+        return data_O

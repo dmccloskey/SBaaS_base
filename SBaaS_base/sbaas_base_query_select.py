@@ -112,35 +112,20 @@ class sbaas_base_query_select(sbaas_base):
 
         INPUT:
         model_I = sqlalchemy model object
-        query_I_v1 = {}, query dictionary
-            select: {sqlalchemy model object:column_name}
-            where: 
-                {}: default AND
-                {sqlalchemy model object:{column_name:{value:,operator:,}}
-                where value = string, float, boolean, etc., or []
-                where operator is of '<', 'LIKE', '=', 'IN' etc.,
-
-            group_by: {sqlalchemy model object:column_name}
-            having: 
-                {}: default AND
-                {sqlalchemy model object:{column_name:{value:,operator:,}}
-                where value = string, float, boolean, etc., or []
-                where operator is of '<', 'LIKE', '=', 'IN' etc.,
-            order_by: {sqlalchemy model object:{column_name:order}}
-                where order is of 'ASC' or 'DESC'
-            limit: float
-            offset: float
         query_I = {}, query dictionary
-            select: [{'model':sqlalchemy model object,'column_name':''},...]
+            select: [{'model':sqlalchemy model object,'column_name':'','aggregate_function':'','label':''},...]
+                where aggregate_function = string, 'count', 'ave', 'max', 'min'
+                where label = string, equivalent to "AS"
             where: [{'model':sqlalchemy model object,'column_name':'','value':'','operator':'','connector':''},...]
                 where value = string, float, boolean, etc., or [] or nested 'where':[]
                 where operator is of '<', 'LIKE', '=', 'IN' etc.,
                 where connector is of 'AND' or 'OR'
             group_by: [{'model':sqlalchemy model object,'column_name':''},...]
-            having: [{'model':sqlalchemy model object,'column_name':'','value':'','operator':'','connector':''},...]
+            having: [{'model':sqlalchemy model object,'column_name':'','value':'','operator':'','connector':'','aggregate_function':''},...]
                 where value = string, float, boolean, etc., or [] or nested 'where':[]
                 where operator is of '<', 'LIKE', '=', 'IN' etc.,
                 where connector is of 'AND' or 'OR'
+                where aggregate_function = string, 'count', 'ave', 'max', 'min'
             order_by: [{'model':sqlalchemy model object,'column_name':'','order':'',},...]
                 where order is of 'ASC' or 'DESC'
             limit: integer
@@ -148,6 +133,7 @@ class sbaas_base_query_select(sbaas_base):
         output_O = 'dictList' = {column:[value,...],...}
                  = 'listDict' = [{column:value,...},...]
                  = 'dictColumn' = {unique_column_value:listDict,...}
+                 = 'scalar' = integer
         dictColumn_I = string, name of the column to use in the dictColumn
 
         OUTPUT:
@@ -165,8 +151,6 @@ class sbaas_base_query_select(sbaas_base):
             # make the query statement
             query_cmd = None;
             query_cmd = self.make_queryStatement(select_cmd,where_cmd,group_by_cmd,having_cmd,order_by_cmd,limit_cmd,offset_cmd);
-            #query_cmd = select(select_cmd).where(where_cmd).group_by(group_by_cmd).order_by(order_by_cmd);
-            #query_cmd = select(select_cmd).where(where_cmd).group_by(group_by_cmd).having(having_cmd).order_by(order_by_cmd).limit(limit_cmd).offset(offset_cmd);
             if verbose_I:
                 print(self.convert_sqlalchemyQuery2PostgresqlString(query_cmd));
             data = self.execute_select(query_cmd);
@@ -177,6 +161,8 @@ class sbaas_base_query_select(sbaas_base):
                 data_O = self.convert_listKeyedTuple2DictList(data);
             elif output_O == 'dictColumn' and dictColumn_I:
                 data_O = self.convert_listKeyedTuple2DictColumn(data,dictColumn_I);
+            elif output_O == 'scalar':
+                data_O = int(data);
             else:
                 data_O = data;
             return data_O;
@@ -423,11 +409,40 @@ class sbaas_base_query_select(sbaas_base):
                 if 'column_name' in row.keys():
                     column = self.get_columnAttribute_sqlalchemyModel(row['model'],row['column_name']);
                     select_O.append(column);
+                elif 'column_name' in row.keys() and \
+                    ('aggregate_function' in row.keys() or 'label' in row.keys()):
+                    table_name = self.get_tableName_sqlalchemyModel(row['model']);
+                    column_name = row['column_name']; #need to validate the column_name
+                    if 'aggregate_function' in row.keys():
+                        aggregate_function_name = self.check_aggregateFunction(row['aggregate_function']);
+                        select_str = ('%s("%s"."%s")' %(aggregate_function_name,table_name,column_name));
+                    else:
+                        select_str = ('"%s"."%s")' %(table_name,column_name));
+                    if 'label' in row.keys():
+                        select_str += (' AS "%s"' %(row['label']));
+                    select_O.append(text(select_str));
                 else:
                     select_O.append(row['model']);
         except Exception as e:
             print(e);
         return select_O
+
+    def check_aggregateFunction(self,aggregate_function_I):
+        '''
+        check the aggregate function
+        INPUT:
+        aggregate_function_I = string
+        OUTPUT:
+        aggregate_function_O = string
+        '''
+        supported_operators = [
+            "count", "ave", "min", "max"
+			];
+        if aggregate_function_I in supported_aggregate_functions:
+            aggregate_function_O = aggregate_function_I;
+        else:
+            aggregate_function_O = None;
+        return aggregate_function_O;
 
     def check_whereOperator(self,operator_I):
         '''
