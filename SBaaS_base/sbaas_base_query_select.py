@@ -3,6 +3,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 from sqlalchemy.sql import select
+from sqlalchemy import func
 
 class sbaas_base_query_select(sbaas_base):
     def get_constraint_sqlalchemyModel(self,model_I,constraint_I):
@@ -162,7 +163,7 @@ class sbaas_base_query_select(sbaas_base):
             elif output_O == 'dictColumn' and dictColumn_I:
                 data_O = self.convert_listKeyedTuple2DictColumn(data,dictColumn_I);
             elif output_O == 'scalar':
-                data_O = int(data);
+                data_O = data[0][0];
             else:
                 data_O = data;
             return data_O;
@@ -406,21 +407,30 @@ class sbaas_base_query_select(sbaas_base):
         select_O = [];
         try:
             for row in select_I:
-                if 'column_name' in row.keys():
+                if 'column_name' in row.keys() and \
+                    ('aggregate_function' in row.keys() or 'label' in row.keys()):
+                    column = self.get_columnAttribute_sqlalchemyModel(row['model'],row['column_name']);
+                    if 'aggregate_function' in row.keys() and 'label' in row.keys():
+                        aggregate_function_name = self.check_aggregateFunction(row['aggregate_function']);
+                        select_obj = aggregate_function_name(column).label(row['label']);
+                    elif 'aggregate_function' in row.keys():
+                        aggregate_function_name = self.check_aggregateFunction(row['aggregate_function']);
+                        select_obj = aggregate_function_name(column);
+                    elif 'label' in row.keys():
+                        select_obj = column.label(row['label']);
+                    #table_name = self.get_tableName_sqlalchemyModel(row['model']);
+                    #column_name = row['column_name']; #need to validate the column_name
+                    #if 'aggregate_function' in row.keys():
+                    #    aggregate_function_name = self.check_aggregateFunction(row['aggregate_function']);
+                    #    select_str = ('%s("%s"."%s")' %(aggregate_function_name,table_name,column_name));
+                    #else:
+                    #    select_str = ('"%s"."%s")' %(table_name,column_name));
+                    #if 'label' in row.keys():
+                    #    select_str += (' AS "%s"' %(row['label']));
+                    select_O.append(select_obj);
+                elif 'column_name' in row.keys():
                     column = self.get_columnAttribute_sqlalchemyModel(row['model'],row['column_name']);
                     select_O.append(column);
-                elif 'column_name' in row.keys() and \
-                    ('aggregate_function' in row.keys() or 'label' in row.keys()):
-                    table_name = self.get_tableName_sqlalchemyModel(row['model']);
-                    column_name = row['column_name']; #need to validate the column_name
-                    if 'aggregate_function' in row.keys():
-                        aggregate_function_name = self.check_aggregateFunction(row['aggregate_function']);
-                        select_str = ('%s("%s"."%s")' %(aggregate_function_name,table_name,column_name));
-                    else:
-                        select_str = ('"%s"."%s")' %(table_name,column_name));
-                    if 'label' in row.keys():
-                        select_str += (' AS "%s"' %(row['label']));
-                    select_O.append(text(select_str));
                 else:
                     select_O.append(row['model']);
         except Exception as e:
@@ -436,10 +446,19 @@ class sbaas_base_query_select(sbaas_base):
         aggregate_function_O = string
         '''
         supported_operators = [
-            "count", "ave", "min", "max"
+            "count", "ave", "min", "max", "sum"
 			];
-        if aggregate_function_I in supported_aggregate_functions:
-            aggregate_function_O = aggregate_function_I;
+        sqlalchemy_function_dict = {
+            "count":func.count,
+            "ave":func.ave,
+            "min":func.min,
+            "max":func.max,
+            "sum":func.sum,
+			};
+        #if aggregate_function_I in supported_aggregate_functions:
+        #    aggregate_function_O = aggregate_function_I;
+        if aggregate_function_I in sqlalchemy_function_dict.keys():
+            aggregate_function_O = sqlalchemy_function_dict[aggregate_function_I];
         else:
             aggregate_function_O = None;
         return aggregate_function_O;
