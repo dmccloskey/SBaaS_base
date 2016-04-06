@@ -342,7 +342,8 @@ class sbaas_base_query_select(sbaas_base):
                 for d in rows_I:
                     tmp = self.convert_keyedTuple2Dict(d);
                     for key in tmp.keys():
-                        if tmp[key] in rows_O.keys():
+                        #if tmp[key] in rows_O.keys(): BUG?
+                        if key in rows_O.keys():
                             rows_O[key].append(tmp[key]);
                         else:
                             rows_O[key] = [];
@@ -390,7 +391,7 @@ class sbaas_base_query_select(sbaas_base):
         data_O = None;
         try:
             ans = self.session.execute(query_I);
-            data_O = ans.fetchall();
+            data_O = ans.fetchall(); #TODO: export direction to listDict object
         except SQLAlchemyError as e:
             self.session.rollback();
             if raise_I: raise;
@@ -601,10 +602,13 @@ class sbaas_base_query_select(sbaas_base):
         order_by_str = '';
         order_by_O = None;
         for row in order_by_I:
-            tablename = self.get_tableName_sqlalchemyModel(row['model']);
-            columnname = self.make_tableColumnStr(tablename,row['column_name']);
-            #TODO: validate order
-            clause = ('%s %s, ' %(columnname,row['order']));
+            if 'model' in row.keys():
+                tablename = self.get_tableName_sqlalchemyModel(row['model']);
+                columnname = self.make_tableColumnStr(tablename,row['column_name']);
+                #TODO: validate order
+                clause = ('%s %s, ' %(columnname,row['order']));
+            elif 'label' in row.keys():
+                clause = ('%s %s, ' %(row['label'],row['order']));
             order_by_str += clause;
         order_by_str = order_by_str[:-2]; #remove trailing comma
         order_by_O = text(order_by_str);
@@ -664,8 +668,11 @@ class sbaas_base_query_select(sbaas_base):
             query_O[k]=[];
             if k in ['select','where','group_by','having','order_by']:
                 for row in clause:
-                    row['model']=table_model_I[row['table_name']];
-                    query_O[k].append(row);
+                    if 'table_name' in row.keys():
+                        row['model']=table_model_I[row['table_name']];
+                        query_O[k].append(row);
+                    elif 'label' in row.keys():
+                        query_O[k].append(row);
             elif k in ['limit','offset']:
                 query_O[k] = clause;
             elif k in ['delete_from']:
