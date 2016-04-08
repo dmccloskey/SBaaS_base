@@ -21,7 +21,7 @@ class sbaas_base_query_insert(sbaas_base_query_select):
             for d in data_I:
                 try:
                     #convert data row in update dict
-                    input_dict = self.convert_dict2UpdateDict(d,model_columns);
+                    input_dict = self.convert_dict2InputDict(d,model_columns);
                     # add data to the model
                     data_add = model_I(input_dict);
                     self.session.add(data_add);

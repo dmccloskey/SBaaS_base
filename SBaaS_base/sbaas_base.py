@@ -96,8 +96,8 @@ class sbaas_base():
         except Exception as e:
             print(e);
 
-    def convert_dict2UpdateDict(self,dict_I,order_I):
-        '''Convert a dictionary into an ordered tuple
+    def convert_dict2InputDict(self,dict_I,order_I):
+        '''Convert a dictionary into an ordered dictionary filling None for empty row columns
         INPUT:
         dict_I = dictionary
         order_I = list of keys in dict_I
@@ -111,6 +111,23 @@ class sbaas_base():
                 if k in dict_I.keys():
                     value = dict_I[k];
                 dict_O[k] = value;
+            return dict_O;
+        except Exception as e:
+            print(e);
+
+    def convert_dict2UpdateDict(self,dict_I,order_I):
+        '''Convert a dictionary into an ordered dictionary NOT filling None for empty row columns
+        INPUT:
+        dict_I = dictionary
+        order_I = list of keys in dict_I
+        OUTPUT:
+        dict_O = dictionary of keys specified in order_I and values specified in dict_I
+        '''
+        dict_O = {};
+        try:
+            for k in order_I:
+                if k in dict_I.keys():
+                    dict_O[k] = dict_I[k];
             return dict_O;
         except Exception as e:
             print(e);
