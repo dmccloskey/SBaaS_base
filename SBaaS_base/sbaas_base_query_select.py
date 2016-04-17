@@ -447,10 +447,11 @@ class sbaas_base_query_select(sbaas_base):
         aggregate_function_O = string
         '''
         supported_operators = [
-            "count", "ave", "min", "max", "sum"
+            "count", "avg", "min", "max", "sum", "ave"
 			];
         sqlalchemy_function_dict = {
             "count":func.count,
+            "avg":func.avg,
             "ave":func.ave,
             "min":func.min,
             "max":func.max,
