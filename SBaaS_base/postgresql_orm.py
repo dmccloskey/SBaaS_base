@@ -136,8 +136,8 @@ class postgresql_orm():
         tables_I = list of tables'''
 
         try:
-            privileges = ' '.join(privileges_I);
-            tables = ' '.join(tables_I);
+            privileges = ', '.join(privileges_I);
+            tables = ', '.join(tables_I);
             cmd = 'CREATE USER "%s" ' %(user_I);
             cmd += "WITH PASSWORD '%s'" %(password_I);
             conn.execute(cmd);
@@ -207,3 +207,76 @@ class postgresql_orm():
             filename_O='database_dump'):
         '''backup a database'''
         return;
+
+    def restore_databaseFromSettings(self,
+            settings_I = {},
+            database_dump_options_I = {},
+            filename_O='database_dump'):
+        '''restore a database'''
+        return;
+
+    def create_policy(self,conn,
+            user_I='guest',
+            privileges_I=['SELECT'],
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            using_I="",
+            with_check_I="",
+            ):
+        '''create table level policy
+        INPUT:
+        user_I = username
+        privileges_I = list of priveleges (e.g., ['SELECT','UPDATE','DELETE','INSERT']
+        tables_I = list of tables
+        schema_I = string
+        using_I = constraint for SELECT privilege
+        with_check_ I = constraint for INSERT, UPDATE, DELETE privileges
+        '''
+
+        try:
+            privileges = ', '.join(privileges_I);
+            for table in tables_I:
+                cmd = 'CREATE POLICY "%s"_"%s" ' %(user_I,table);
+                cmd += 'ON "%s"."%s" ' %(schema_I,table);
+                cmd += 'FOR %s TO "%s" ' %(privileges,user_I);
+                if 'SELECT' in privileges_I:
+                    cmd += "USING (%s) " %(using_I);
+                if 'UPDATE' in privileges_I or 'DELETE' in privileges_I:
+                    cmd += "WITH CHECK (%s) " %(using_I);
+                cmd += ';';
+                try:
+                    conn.execute(cmd);
+                    conn.execute("commit");
+                except SQLAlchemyError as e:
+                    print(e);
+                    conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def alter_table_action(self,conn,
+            action_I='ENABLE ROW LEVEL SECURITY',
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            ):
+        '''alter tables using the ALTER TABLE action format
+        INPUT:
+        action_I = string
+        tables_I = list of tables
+        schema_I = string
+        '''
+
+        try:
+            for table in tables_I:
+                cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
+                cmd += '%s ' %(action_I);
+                cmd += ';';
+                try:
+                    conn.execute(cmd);
+                    conn.execute("commit");
+                except SQLAlchemyError as e:
+                    print(e);
+                    conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
