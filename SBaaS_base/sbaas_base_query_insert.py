@@ -26,10 +26,11 @@ class sbaas_base_query_insert(sbaas_base_query_select):
                     data_add = model_I(input_dict);
                     self.session.add(data_add);
                 except SQLAlchemyError as e:
-                    #self.session.rollback();
+                    self.session.rollback();
                     if raise_I: raise;
                     else: print(e);
                 except Exception as e:
+                    self.session.rollback();
                     if raise_I: raise;
                     else: print(e);
             #commit the added data:

@@ -94,57 +94,122 @@ class postgresql_orm():
         try:
             conn = self.make_connection(database_I=database_I,user_I=user_I,password_I=password_I,host_I=host_I);
             self.create_database(conn,database_O);
-            self.create_user(conn,user_O,password_O,privileges_O,tables_O,schema_O);
+            self.create_user(conn,user_O,password_O);
+            self.grant_privileges(conn,user_O,privileges_O,tables_O,schema_O);
             conn.close();
         except SQLAlchemyError as e:
             print(e);
             exit(-1);
     
-    def create_database(self,conn,database_I='sbaas'):
+    def create_database(self,conn,database_I='sbaas',
+            verbose_I=False):
         """create a new database"""
         cmd = 'CREATE DATABASE "%s"' %(database_I);
+        if verbose_I:
+            print(cmd);
         try:
             conn.execute(cmd);
+            conn.commit();
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
 
-    def drop_database(self,conn,database_I='sbaas'):
+    def drop_database(self,conn,database_I='sbaas',
+            verbose_I=False):
         """drop a database"""
         cmd = 'DROP DATABASE IF EXISTS "%s"' %(database_I);
+        if verbose_I:
+            print(cmd);
         try:
             conn.execute(cmd);
-            conn.execute("commit");
+            conn.commit();
         except SQLAlchemyError as e:
             print(e);
 
-    def drop_user(self,conn,user_I):
+    def drop_user(self,conn,user_I,
+            verbose_I=False):
         """drop a user"""
         cmd = 'DROP USER IF EXISTS "%s"' %(user_I);
+        if verbose_I:
+            print(cmd);
         try:
             conn.execute(cmd);
-            conn.execute("commit");
+            conn.commit();
         except SQLAlchemyError as e:
             print(e);
 
-    def create_user(self,conn,user_I='guest',password_I='guest',privileges_I=['SELECT'],tables_I=['ALL TABLES'],schema_I='public'):
-        '''create a new user
+    def create_user(self,conn,user_I='guest',password_I='guest',
+            verbose_I=False):
+        '''create a new role with a password
         INPUT:
         user_I = username
-        password_I = password
+        password_I = password'''
+
+        try:
+            cmd = 'CREATE USER "%s" ' %(user_I);
+            cmd += "WITH PASSWORD '%s'" %(password_I);
+            if verbose_I:
+                print(cmd);
+            conn.execute(cmd);
+            #conn.execute("commit");
+            conn.commit();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def grant_privileges(self,conn,user_I='guest',
+            privileges_I=['SELECT'],
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            verbose_I=False):
+        '''grant privileges to user/role
+        INPUT:
+        user_I = username
         privileges_I = list of priveleges (e.g., ['SELECT','UPDATE','DELETE','INSERT']
-        tables_I = list of tables'''
+        tables_I = list of tables
+        schema_I = schema name
+        '''
+
+        try:
+            privileges = ', '.join(privileges_I);
+            tables = '';
+            for table in tables_I:
+                tables += ('"%s", '%(table));
+            tables = tables[:-2];
+            #cmd = 'GRANT %s ON %s IN SCHEMA %s TO "%s"' %(privileges,tables,schema_I,user_I);
+            cmd = 'GRANT %s ON %s TO "%s"' %(privileges,tables,user_I);
+            if verbose_I:
+                print(cmd);
+            conn.execute(cmd);
+            conn.commit();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def revoke_privileges(self,conn,user_I='guest',
+            privileges_I=['SELECT'],
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            verbose_I=False):
+        '''grant privileges to user/role
+        INPUT:
+        user_I = username
+        privileges_I = list of priveleges (e.g., ['SELECT','UPDATE','DELETE','INSERT']
+        tables_I = list of tables
+        schema_I = schema name,
+        '''
 
         try:
             privileges = ', '.join(privileges_I);
             tables = ', '.join(tables_I);
-            cmd = 'CREATE USER "%s" ' %(user_I);
-            cmd += "WITH PASSWORD '%s'" %(password_I);
-            conn.execute(cmd);
-            conn.execute("commit");
-            cmd = 'GRANT %s ON %s IN SCHEMA %s TO "%s"' %(privileges,tables,schema_I,user_I);
-            conn.execute(cmd);
-            conn.execute("commit");
+            for table in tables_I:
+                for privilege in privileges_I:
+                    #cmd = 'REVOKE %s ON %s IN SCHEMA %s FROM "%s"' %(privilege,table,schema_I,user_I);
+                    cmd = 'REVOKE %s ON "%s" FROM "%s"' %(privilege,table,user_I);
+                    if verbose_I:
+                        print(cmd);
+                    conn.execute(cmd);
+                    conn.commit();
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
@@ -189,6 +254,7 @@ class postgresql_orm():
             conn = self.make_connection(database_I=database_I,user_I=user_I,password_I=password_I,host_I=host_I);
             self.create_database(conn,settings_I['database']);
             self.create_user(conn,settings_I['user'],settings_I['password'],privileges_O,tables_O,schema_O);
+            self.grant_privileges(conn,settings_I['user'],privileges_O,tables_O,schema_O);
             conn.close();
         except SQLAlchemyError as e:
             print(e);
@@ -222,6 +288,7 @@ class postgresql_orm():
             schema_I='public',
             using_I="",
             with_check_I="",
+            verbose_I = False
             ):
         '''create table level policy
         INPUT:
@@ -234,22 +301,59 @@ class postgresql_orm():
         '''
 
         try:
-            privileges = ', '.join(privileges_I);
+            privileges = ' '.join(privileges_I);
             for table in tables_I:
-                cmd = 'CREATE POLICY "%s"_"%s" ' %(user_I,table);
-                cmd += 'ON "%s"."%s" ' %(schema_I,table);
-                cmd += 'FOR %s TO "%s" ' %(privileges,user_I);
-                if 'SELECT' in privileges_I:
-                    cmd += "USING (%s) " %(using_I);
-                if 'UPDATE' in privileges_I or 'DELETE' in privileges_I:
-                    cmd += "WITH CHECK (%s) " %(using_I);
-                cmd += ';';
-                try:
-                    conn.execute(cmd);
-                    conn.execute("commit");
-                except SQLAlchemyError as e:
-                    print(e);
-                    conn.rollback();
+                for privilege in privileges_I:
+                    cmd = 'CREATE POLICY "%s_%s" ' %(user_I,privilege);
+                    cmd += 'ON "%s"."%s" ' %(schema_I,table);
+                    cmd += 'FOR %s TO "%s" ' %(privilege,user_I);
+                    if privilege in ['UPDATE','SELECT','DELETE','ALL']:
+                        cmd += "USING (%s) " %(using_I);
+                    if privilege in ['UPDATE','INSERT','ALL']:
+                        cmd += "WITH CHECK (%s) " %(using_I);
+                    cmd += ';';
+                    if verbose_I:
+                        print(cmd);
+                    try:
+                        conn.execute(cmd);
+                        conn.commit();
+                    except SQLAlchemyError as e:
+                        print(e);
+                        conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def drop_policy(self,conn,
+            user_I='guest',
+            privileges_I=['SELECT'],
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            verbose_I = False
+            ):
+        '''create table level policy
+        INPUT:
+        user_I = username
+        privileges_I = list of priveleges (e.g., ['SELECT','UPDATE','DELETE','INSERT']
+        tables_I = list of tables
+        schema_I = string
+        '''
+
+        try:
+            privileges = ' '.join(privileges_I);
+            for table in tables_I:
+                for privilege in privileges_I:
+                    cmd = 'DROP POLICY IF EXISTS "%s_%s" ' %(user_I,privilege);
+                    cmd += 'ON "%s"."%s" ' %(schema_I,table);
+                    cmd += ';';
+                    if verbose_I:
+                        print(cmd);
+                    try:
+                        conn.execute(cmd);
+                        conn.commit();
+                    except SQLAlchemyError as e:
+                        print(e);
+                        conn.rollback();
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
@@ -258,6 +362,7 @@ class postgresql_orm():
             action_I='ENABLE ROW LEVEL SECURITY',
             tables_I=['ALL TABLES'],
             schema_I='public',
+            verbose_I = False,
             ):
         '''alter tables using the ALTER TABLE action format
         INPUT:
@@ -271,9 +376,11 @@ class postgresql_orm():
                 cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
                 cmd += '%s ' %(action_I);
                 cmd += ';';
+                if verbose_I:
+                    print(cmd);
                 try:
                     conn.execute(cmd);
-                    conn.execute("commit");
+                    conn.commit();
                 except SQLAlchemyError as e:
                     print(e);
                     conn.rollback();
