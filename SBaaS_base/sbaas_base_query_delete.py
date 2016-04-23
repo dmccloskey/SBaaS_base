@@ -111,4 +111,3 @@ class sbaas_base_query_delete(sbaas_base_query_select):
             self.session.rollback();
             if raise_I: raise;
             else: print(e);
-        return data_O
