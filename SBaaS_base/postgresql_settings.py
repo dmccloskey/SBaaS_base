@@ -94,7 +94,7 @@ class postgresql_settings():
         try:
             db_variables = self.get_variables_config(config_I,"DATABASE",variables_I);
         except Exception as e:
-            print(d);
+            print(e);
         return db_variables;
 
     def get_datadir_variables(self,config_I,variables_I=["sbaas",'workspace','workspace_data','visualization_data','visualization_resources','drive','github']):
