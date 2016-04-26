@@ -90,12 +90,20 @@ class postgresql_settings():
 
     def get_database_variables(self,config_I,variables_I=["host",'database','password','schema','user']):
         '''get variables for the database'''
-        db_variables = self.get_variables_config(config_I,"DATABASE",variables_I);
+        db_variables = {};
+        try:
+            db_variables = self.get_variables_config(config_I,"DATABASE",variables_I);
+        except Exception as e:
+            print(d);
         return db_variables;
 
     def get_datadir_variables(self,config_I,variables_I=["sbaas",'workspace','workspace_data','visualization_data','visualization_resources','drive','github']):
         '''get variables for the data directories'''
-        datadir_variables = self.get_variables_config(config_I,"DATA_DIR",variables_I);
+        datadir_variables = {};
+        try:
+            datadir_variables = self.get_variables_config(config_I,"DATA_DIR",variables_I);
+        except Exception as e:
+            print(e);
         return datadir_variables;
 
     def write_settings(self,filename_O):
