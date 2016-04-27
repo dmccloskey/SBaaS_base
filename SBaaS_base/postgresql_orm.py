@@ -58,7 +58,7 @@ class postgresql_orm():
             exit(-1);
 
     def make_connection(self,
-            database_I='postgres',user_I='postgres',password_I='18dglass',host_I="localhost:5432"):
+            database_I='postgres',user_I='postgres',password_I='postgres',host_I="localhost:5432"):
         '''return connection to the database
         INPUT (option2):
         database_I
@@ -76,7 +76,7 @@ class postgresql_orm():
             exit(-1);
 
     def create_newDatabaseAndUser(self,
-            database_I='postgres',user_I='postgres',password_I='18dglass',host_I="localhost:5432",
+            database_I='postgres',user_I='postgres',password_I='postgres',host_I="localhost:5432",
             database_O='sbaas01',user_O='guest',password_O='guest',privileges_O=['ALL PRIVILEGES'],tables_O=['ALL TABLES'],schema_O='public'):
         '''create a new database and user
         INPUT: settings to connect to an exiting database
