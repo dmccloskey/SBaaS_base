@@ -234,7 +234,7 @@ class postgresql_orm():
         return self.engine; 
 
     def create_newDatabaseAndUserFromSettings(self,
-            database_I='postgres',user_I='postgres',password_I='18dglass',host_I="localhost:5432",
+            database_I='postgres',user_I='postgres',password_I='postgres',host_I="localhost:5432",
             settings_I = {},
             privileges_O=['ALL PRIVILEGES'],tables_O=['ALL TABLES'],schema_O='public'):
         '''create a new database and user
@@ -261,7 +261,7 @@ class postgresql_orm():
             exit(-1);
 
     def copy_databaseFromSettings(self,
-            database_I='postgres',user_I='postgres',password_I='18dglass',host_I="localhost:5432",
+            database_I='postgres',user_I='postgres',password_I='postgres',host_I="localhost:5432",
             settings_I = {},
             database_O = 'postgres_copy'):
         '''copy a database'''
