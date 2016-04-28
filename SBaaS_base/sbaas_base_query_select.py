@@ -477,6 +477,7 @@ class sbaas_base_query_select(sbaas_base):
             "<", ">", "<=", ">=" , "=", "!=",
             "BETWEEN", "NOT BETWEEN",
             "LIKE", "NOT LIKE",
+            "=ANY","!=ANY",
             "ILIKE", "NOT ILIKE",
             "IS", "IS NOT",
             "IS DISTINCT FROM", "IS NOT DISTINCT FROM",
@@ -524,8 +525,6 @@ class sbaas_base_query_select(sbaas_base):
 
     def make_where(self,where_I):
         '''make the where clause
-        TODO:
-        support to specify OR and AND combinations
         INPUT:
         where_I = {};
         OUTPUT:
