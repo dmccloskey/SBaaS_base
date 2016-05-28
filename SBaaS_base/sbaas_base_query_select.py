@@ -512,12 +512,17 @@ class sbaas_base_query_select(sbaas_base):
         model_I = sqlalchemy model object
         column_name_I = string, name of the column
         value_I = string
+        operator_I = string
         OUTPUT:
         value_O = string, in the correct format for the value
         '''
         #TODO: validate the value (DATE, JSON, ARRAY, etc.,)
         columntype = self.get_columnAttributeDataType_sqlalchemyModel(model_I,column_name_I);
-        if 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
+        if '::text[]' in value_I or '::int[]' in value_I:
+            #array comparator
+            value_O = value_I;
+        elif 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
+            #need to add in double string
             value_O = self.convert_string2StringString(value_I);
         else:
             value_O = value_I;

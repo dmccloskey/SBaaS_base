@@ -387,3 +387,101 @@ class postgresql_orm():
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
+            
+    
+    def create_sequence(self,conn,sequence_I='_id_seq',
+            verbose_I=False):
+        """create a new sequence"""
+        cmd = 'CREATE SEQUENCE "%s"' %(sequence_I);
+        if verbose_I:
+            print(cmd);
+        try:
+            conn.execute(cmd);
+            conn.commit();
+        except SQLAlchemyError as e:
+            print(e);
+            conn.rollback();
+
+    def drop_sequence(self,conn,sequence_I='_id_seq',
+            verbose_I=False):
+        """drop a sequence"""
+        cmd = 'DROP SEQUENCE IF EXISTS "%s"' %(sequence_I);
+        if verbose_I:
+            print(cmd);
+        try:
+            conn.execute(cmd);
+            conn.commit();
+        except SQLAlchemyError as e:
+            print(e);
+            conn.rollback();
+
+    def alter_table_addConstraint(self,conn,
+            constraint_name_I='',
+            constraint_type_I='',
+            constraint_columns_I=[],
+            tables_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the ADD CONSTRAINT format
+        INPUT:
+        constraint_name_I = string
+        constraint_type_I = string, e.g., UNIQUE, PRIMARY KEY, etc,.
+        constraint_columns_I = list of column names to apply the constraint
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd += 'ADD CONSTRAINT %s "%s"' %(constraint_type_I,constraint_name_I);
+            columns_str = '(';
+            for column in constraint_columns_I:
+                columns_str += ('"%s",'%(column));
+            columns_str += columns_str[:-1];
+            columns_str += ')';
+            cmd += columns_str;
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def alter_table_drop(self,conn,
+            attribute_I='CONSTRAINT',
+            attribute_name_I='',
+            tables_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the DROP format
+
+        INPUT:
+        attribute_I = string, attribute to drop
+        attribute_name_I = name of the attribute
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd += 'DROP %s "%s"' %(attribute_I,attribute_name_I);
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
