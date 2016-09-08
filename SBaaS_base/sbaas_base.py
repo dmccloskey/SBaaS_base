@@ -220,3 +220,20 @@ class sbaas_base():
         except Exception as e:
             print(e);
         return table_model_O;
+
+    def convert_list2string(self,list_I,deliminator_I=','):
+        '''convert a list 2 a string
+        INPUT:
+        list_I = list
+        deliminator_I = string
+        OUTPUT:
+        string_O = string
+        '''
+        string_O = '';
+        if type(list_I)==type([]):
+            string_O = deliminator_I.join(list_I);
+        elif type(list_I)==type(''):
+            string_O = list_I;
+        else:
+            print('type of list_I is not supported.')
+        return string_O;
