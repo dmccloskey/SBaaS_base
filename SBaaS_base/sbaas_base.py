@@ -1,4 +1,4 @@
-'''Base class for sbaas'''
+﻿'''Base class for sbaas'''
 from sqlalchemy.dialects import postgresql
 
 class sbaas_base():
@@ -237,3 +237,76 @@ class sbaas_base():
         else:
             print('type of list_I is not supported.')
         return string_O;
+
+    def hashJoin(self,table1, index1, table2, index2):
+        '''Implement the hashJoin algorithm across two lists of tuples
+        https://rosettacode.org/wiki/Hash_join#Python
+        INPUT:
+        table1 = list of tuples, dictionaries, lists, etc.
+        index1 = integer (tuple/list index),
+                 string/integer (dict key),
+                 function (composite key)
+        table2 = same type as table1
+        index2 = same type as index1
+        OUTPUT:
+        EXAMPLE1:
+        table1 = [(27, "Jonah"),
+                  (18, "Alan"),
+                  (28, "Glory"),
+                  (18, "Popeye"),
+                  (28, "Alan")]
+        table2 = [("Jonah", "Whales"),
+                  ("Jonah", "Spiders"),
+                  ("Alan", "Ghosts"),
+                  ("Alan", "Zombies"),
+                  ("Glory", "Buffy")]
+ 
+        for row in hashJoin(table1, 1, table2, 0):
+            print(row)
+
+        EXAMPLE1 OUTPUT:
+        (27, 'Jonah', 'Jonah', 'Whales')
+        (27, 'Jonah', 'Jonah', 'Spiders's)
+        (18, 'Alan', 'Alan', 'Ghosts')
+        (28, 'Alan', 'Alan', 'Ghosts')
+        (18, 'Alan', 'Alan', 'Zombies')
+        (28, 'Alan', 'Alan', 'Zombies')
+        (28, 'Glory', 'Glory', 'Buffy')
+
+        EXAMPLE2;
+        table1 = [{'age':27, 'person':"Jonah"},
+                  {'age':18, 'person':"Alan"},
+                  {'age':28, 'person':"Glory"},
+                  {'age':18, 'person':"Popeye"},
+                  {'age':28, 'person':"Alan"}]
+        table2 = [{'person':"Jonah", 'book':"Whales"},
+                  {'person':"Jonah", 'book':"Spiders"},
+                  {'person':"Alan", 'book':"Ghosts"},
+                  {'person':"Alan", 'book':"Zombies"},
+                  {'person':"Glory", 'book':"Buffy"}]
+        '''
+        from collections import defaultdict
+        from copy import copy
+
+        table_O = [];
+        if not table1 or len(table1)<1 or not table2 or len(table2)<1:
+            return table_O;
+
+        h = defaultdict(list)
+        # hash phase
+        for s in table1:
+            h[s[index1]].append(s)
+        # join phase
+        if str(type(table1[0]))=="<class 'dict'>":
+            for r in table2:
+                for s in h[r[index2]]:
+                    t = copy(s)
+                    t.update(r)
+                    table_O.append(t);
+            #table_O = [copy(s).update(r) for r in table2 for s in h[r[index2]]];
+        elif str(type(table1[0]))=="<class 'list'>" or \
+            str(type(table1[0]))=="<class 'tuple'>":
+            table_O = [s+r for r in table2 for s in h[r[index2]]];
+        else:
+            print('type not supported.');
+        return table_O;
