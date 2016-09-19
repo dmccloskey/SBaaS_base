@@ -303,7 +303,7 @@ class sbaas_base():
                     t = copy(s)
                     t.update(r)
                     table_O.append(t);
-            #table_O = [copy(s).update(r) for r in table2 for s in h[r[index2]]];
+            #table_O = [{**s, **r} for r in table2 for s in h[r[index2]]]; #python 3.5+
         elif str(type(table1[0]))=="<class 'list'>" or \
             str(type(table1[0]))=="<class 'tuple'>":
             table_O = [s+r for r in table2 for s in h[r[index2]]];
