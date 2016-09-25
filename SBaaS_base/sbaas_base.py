@@ -249,6 +249,8 @@ class sbaas_base():
         table2 = same type as table1
         index2 = same type as index1
         OUTPUT:
+        ...
+
         EXAMPLE1:
         table1 = [(27, "Jonah"),
                   (18, "Alan"),
@@ -284,6 +286,9 @@ class sbaas_base():
                   {'person':"Alan", 'book':"Ghosts"},
                   {'person':"Alan", 'book':"Zombies"},
                   {'person':"Glory", 'book':"Buffy"}]
+        for row in hashJoin(table1, 'person', table2, 'person'):
+            print(row)
+
         '''
         from collections import defaultdict
         from copy import copy

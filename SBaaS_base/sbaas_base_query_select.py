@@ -482,6 +482,7 @@ class sbaas_base_query_select(sbaas_base):
             "IS", "IS NOT",
             "IS DISTINCT FROM", "IS NOT DISTINCT FROM",
             "IN", "NOT IN",
+            "@>","<@","<>","&&"
 			];
         if operator_I in supported_operators:
             operator_O = operator_I;
@@ -518,7 +519,8 @@ class sbaas_base_query_select(sbaas_base):
         '''
         #TODO: validate the value (DATE, JSON, ARRAY, etc.,)
         columntype = self.get_columnAttributeDataType_sqlalchemyModel(model_I,column_name_I);
-        if '::text[]' in str(value_I) or '::int[]' in str(value_I):
+        if '::text[]' in str(value_I) or '::int[]' in str(value_I) or\
+            '::character varying[]' in str(value_I):
             #array comparator
             value_O = value_I;
         elif 'VARCHAR' in str(columntype) or 'TEXT' in str(columntype):
