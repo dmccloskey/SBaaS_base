@@ -39,9 +39,15 @@ class sbaas_base():
     def clear_data(self):
         '''clear the data catch'''
         del self.data[:];
+    def set_data(self,data_I):
+        '''set data'''
+        self.data = data_I;
     def add_data(self,data_I):
         '''add data'''
-        self.data = data_I;
+        self.data.extend(data_I);
+    def get_data(self,data_I):
+        '''get the data catch'''
+        return self.data;
 
     def convert_datetime2string(self,datetime_I):
         '''convert datetime to string date time 
