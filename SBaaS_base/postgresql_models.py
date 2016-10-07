@@ -112,15 +112,16 @@ class postgresql_models(object):
         '''
         table_args_O = "    __table_args__ = (\n"
         if foreignKeyConstraints_I and not foreignKeyConstraints_I is None:
+            #TODO:...
             for constraint in foreignKeyConstraints_I:
                 table_args_O += "        ForeignKeyConstraint(%s,%s),\n"%(constraint[0],constraint[1])
         if uniqueConstraints_I and not uniqueConstraints_I is None:
             for constraint in uniqueConstraints_I:
-                table_args_O += "        UniqueConstraint(["
+                table_args_O += "        UniqueConstraint("
                 for c in constraint.split(','):
                     table_args_O += "'%s',"%(c)
                 table_args_O = table_args_O[:-1];
-                table_args_O += "]),\n"
+                table_args_O += "),\n"
         if primaryKeyConstraint_I and not primaryKeyConstraint_I is None:
             table_args_O += "        PrimaryKeyConstraint("
             for constraint in primaryKeyConstraint_I.split(','):
