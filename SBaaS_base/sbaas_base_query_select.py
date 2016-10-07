@@ -293,7 +293,10 @@ class sbaas_base_query_select(sbaas_base):
         return query_cmd;
 
     def convert_keyedTuple2Dict(self,row_I):
-        '''converted keyed tuple to dictionary'''
+        '''converted keyed tuple to dictionary
+        
+        TODO: why not use ._asdict()?
+        '''
         row_O = {};
         try:
             for column in row_I.__table__.columns:

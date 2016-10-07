@@ -321,3 +321,53 @@ class sbaas_base():
         else:
             print('type not supported.');
         return table_O;
+
+    def get_platform(self):
+        '''Get the system platform
+        '''
+        from platform import platform
+
+        return platform();
+
+    def get_memory(self):
+        '''Get the process memory
+        '''
+        from platform import platform
+        from .sbaas_base_diagnostics import sbaas_base_memory_linux,sbaas_base_memory_windows
+
+        memory_O = None;
+        if "Windows" in platform():
+            from .sbaas_base_diagnostics import sbaas_base_memory_windows
+            memory_windows = sbaas_base_memory_windows()
+            memory_O = memory_windows.get_memory();
+        elif "Linux" in platform():
+            from .sbaas_base_diagnostics import sbaas_base_memory_linux
+            memory_linux = sbaas_base_memory_linux()
+            memory_O = memory_windows.get_linux();
+        else:
+            print('platform not supported');
+
+        return memory_O;
+
+    def check_parameters(self,parameters_I,func_object_I):
+        '''check that the keys in parameters_I match
+        the parameters available in func_object_I
+        INPUT:
+        parameters_I = dict with keys=parameters
+        func_object_I = object
+        OUTPUT:
+        parameters_O = dict with keys=parameters
+        '''
+        from inspect import signature
+
+        parameters_O = None;        
+
+        #get the func_object parameters
+        method_signature = signature(func_object_I);
+        method_parameters = [mp for mp in method_signature.parameters];
+
+        #trim the arguments to best match the method parameters: 
+        if method_parameters:
+            parameters_O = {k:parameters_I[k] for k in method_parameters if k in parameters_I.keys()};
+
+        return parameters_O;

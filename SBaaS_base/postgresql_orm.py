@@ -356,38 +356,7 @@ class postgresql_orm():
                         conn.rollback();
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
-
-    def alter_table_action(self,conn,
-            action_I='ENABLE ROW LEVEL SECURITY',
-            tables_I=['ALL TABLES'],
-            schema_I='public',
-            verbose_I = False,
-            ):
-        '''alter tables using the ALTER TABLE action format
-        INPUT:
-        action_I = string
-        tables_I = list of tables
-        schema_I = string
-        '''
-
-        try:
-            for table in tables_I:
-                cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
-                cmd += '%s ' %(action_I);
-                cmd += ';';
-                if verbose_I:
-                    print(cmd);
-                try:
-                    conn.execute(cmd);
-                    conn.commit();
-                except SQLAlchemyError as e:
-                    print(e);
-                    conn.rollback();
-        except SQLAlchemyError as e:
-            print(e);
-            #conn.rollback();
-            
+            #conn.rollback();            
     
     def create_sequence(self,conn,sequence_I='_id_seq',
             verbose_I=False):
@@ -473,6 +442,223 @@ class postgresql_orm():
         try:
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
             cmd += 'DROP %s "%s"' %(attribute_I,attribute_name_I);
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def alter_table_action(self,conn,
+            action_I='ENABLE ROW LEVEL SECURITY',
+            tables_I=['ALL TABLES'],
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the ALTER TABLE action format
+        INPUT:
+        action_I = string
+        tables_I = list of tables
+        schema_I = string
+        '''
+
+        try:
+            for table in tables_I:
+                cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
+                cmd += '%s ' %(action_I);
+                cmd += ';';
+                if verbose_I:
+                    print(cmd);
+                try:
+                    conn.execute(cmd);
+                    conn.commit();
+                except SQLAlchemyError as e:
+                    print(e);
+                    conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def create_table(self,conn,
+            table_I='',
+            schema_I='public',
+            initialize_pkey_I = True,
+            verbose_I = False,
+            ):
+        '''create table
+        INPUT:
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'CREATE TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
+            if initialize_pkey_I:
+                cmd += '(id integer NOT NULL \n CONSTRAINT "%_pkey" PRIMARY KEY (id))\n'%table_I;
+            else:
+                cmd += '()\n';
+            cmd += 'WITH (OIDS=FALSE);'
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def drop_table(self,conn,
+            table_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''drop table
+        INPUT:
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'DROP TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
+            cmd += ';'
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def alter_table_addAttribute(self,conn,
+            attribute_I='Column',
+            attribute_name_I='',
+            attribute_parameters_I = 'varchar(50)',
+            tables_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the ADD format
+
+        INPUT:
+        attribute_I = string, attribute to drop
+        attribute_name_I = name of the attribute
+        attribute_parameters_I = name of the attribute
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd += 'ADD %s "%s" %s' %(attribute_I,attribute_name_I,attribute_parameters_I);
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def alter_table_alterAttribute(self,conn,
+            attribute_I='Column',
+            attribute_name_I='',
+            attribute_parameters_I = 'varchar(50)',
+            tables_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the alter format
+
+        INPUT:
+        attribute_I = string, attribute to drop
+        attribute_name_I = name of the attribute
+        attribute_parameters_I = name of the attribute
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd += 'ALTER %s "%s" %s' %(attribute_I,attribute_name_I,attribute_parameters_I);
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def alter_table_renameAttribute(self,conn,
+            attribute_I='Column',
+            attribute_name_I='',
+            attribute_name_new_I = '',
+            tables_I='',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the alter format
+
+        INPUT:
+        attribute_I = string, attribute to drop
+        attribute_name_I = name of the attribute
+        attribute_name_new_I = new name of the attribute
+        tables_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd += 'RENAME %s "%s" TO "%s"' %(attribute_I,attribute_name_I,attribute_name_new_I);
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+            #conn.rollback();
+
+    def rename_table(self,conn,
+            table_I='',
+            table_new_I = '',
+            schema_I='public',
+            verbose_I = False,
+            ):
+        '''alter tables using the alter format
+
+        INPUT:
+        tables_I = string
+        table_new_I = string
+        schema_I = string
+        '''
+
+        try:
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
+            cmd += 'RENAME TO "%s"."%s"' %(schema_I,table_new_I);
             cmd += ';';
             if verbose_I:
                 print(cmd);
