@@ -1,4 +1,4 @@
-from os import system
+﻿from os import system
 from .postgresql_orm_base import *
 from .postgresql_utilities import _Session
 
@@ -264,21 +264,36 @@ class postgresql_orm():
             database_I='postgres',user_I='postgres',password_I='postgres',host_I="localhost:5432",
             settings_I = {},
             database_O = 'postgres_copy'):
-        '''copy a database'''
+        '''copy a database
+        TODO:
+        '''
         return;
 
     def dump_databaseFromSettings(self,
             settings_I = {},
             database_dump_options_I = {},
             filename_O='database_dump'):
-        '''backup a database'''
+        '''backup a database
+        TODO:
+        '''
+        return;
+
+    def replicate_databaseFromSettings(self,
+            settings_I = {},
+            database_dump_options_I = {},
+            filename_O='database_dump'):
+        '''backup a database
+        TODO:
+        '''
         return;
 
     def restore_databaseFromSettings(self,
             settings_I = {},
             database_dump_options_I = {},
             filename_O='database_dump'):
-        '''restore a database'''
+        '''restore a database
+        TODO:
+        '''
         return;
 
     def create_policy(self,conn,
@@ -388,7 +403,8 @@ class postgresql_orm():
             constraint_name_I='',
             constraint_type_I='',
             constraint_columns_I=[],
-            tables_I='',
+            constraint_clause_I='',
+            table_I='',
             schema_I='public',
             verbose_I = False,
             ):
@@ -397,17 +413,20 @@ class postgresql_orm():
         constraint_name_I = string
         constraint_type_I = string, e.g., UNIQUE, PRIMARY KEY, etc,.
         constraint_columns_I = list of column names to apply the constraint
-        tables_I = string
+        table_I = string
         schema_I = string
         '''
 
         try:
-            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
             cmd += 'ADD CONSTRAINT %s "%s"' %(constraint_type_I,constraint_name_I);
             columns_str = '(';
-            for column in constraint_columns_I:
-                columns_str += ('"%s",'%(column));
-            columns_str += columns_str[:-1];
+            if constraint_columns_I:
+                for column in constraint_columns_I:
+                    columns_str += ('"%s",'%(column));
+                columns_str += columns_str[:-1];
+            elif constraint_clause_I:
+                columns_str+='%s'%(constraint_clause_I)
             columns_str += ')';
             cmd += columns_str;
             cmd += ';';
@@ -457,6 +476,7 @@ class postgresql_orm():
 
     def alter_table_action(self,conn,
             action_I='ENABLE ROW LEVEL SECURITY',
+            action_options_I='',
             tables_I=['ALL TABLES'],
             schema_I='public',
             verbose_I = False,
@@ -472,6 +492,7 @@ class postgresql_orm():
             for table in tables_I:
                 cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
                 cmd += '%s ' %(action_I);
+                cmd += '%s ' %(action_options_I);
                 cmd += ';';
                 if verbose_I:
                     print(cmd);
@@ -489,18 +510,33 @@ class postgresql_orm():
             table_I='',
             schema_I='public',
             initialize_pkey_I = True,
+            table_constraints_I = [],
+            table_constraints_options_I = [],
+            like_sourceTable_schema_I = 'public',
+            like_sourceTable_I = '',
+            like_options_I = 'INCLUDING ALL',            
             verbose_I = False,
             ):
         '''create table
         INPUT:
         tables_I = string
         schema_I = string
+        initialize_pkey_I = boolean, initialize "id" as primary key
+        table_constraints_I = [] of string, table constraints (TODO)
+        table_constraints_options_I = [] of string, table constraint options (TODO)
+        like_sourceTable_schema_I = string,
+        like_sourceTable_I = string,
+        like_options_I = string
         '''
 
         try:
             cmd = 'CREATE TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
             if initialize_pkey_I:
-                cmd += '(id integer NOT NULL \n CONSTRAINT "%_pkey" PRIMARY KEY (id))\n'%table_I;
+                cmd += '(id integer NOT NULL \n CONSTRAINT "%s_pkey" PRIMARY KEY (id))\n'%table_I;
+            elif like_sourceTable_I:
+                cmd += '(LIKE "%s"."%s" %s (id))\n'%(
+                    like_sourceTable_schema_I,like_sourceTable_I,
+                    like_options_I);
             else:
                 cmd += '()\n';
             cmd += 'WITH (OIDS=FALSE);'
@@ -518,6 +554,7 @@ class postgresql_orm():
     def drop_table(self,conn,
             table_I='',
             schema_I='public',
+            cascade_restrict_I='',
             verbose_I = False,
             ):
         '''drop table
@@ -528,6 +565,8 @@ class postgresql_orm():
 
         try:
             cmd = 'DROP TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
+            if cascade_restrict_I:
+                cmd += '%s ' %(cascade_restrict_I);
             cmd += ';'
             if verbose_I:
                 print(cmd);
@@ -544,7 +583,7 @@ class postgresql_orm():
             attribute_I='Column',
             attribute_name_I='',
             attribute_parameters_I = 'varchar(50)',
-            tables_I='',
+            table_I='',
             schema_I='public',
             verbose_I = False,
             ):
@@ -554,12 +593,12 @@ class postgresql_orm():
         attribute_I = string, attribute to drop
         attribute_name_I = name of the attribute
         attribute_parameters_I = name of the attribute
-        tables_I = string
+        table_I = string
         schema_I = string
         '''
 
         try:
-            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
+            cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
             cmd += 'ADD %s "%s" %s' %(attribute_I,attribute_name_I,attribute_parameters_I);
             cmd += ';';
             if verbose_I:
@@ -671,3 +710,257 @@ class postgresql_orm():
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
+
+    def create_function(self,conn,
+            function_I='',
+            argmode_I='',
+            argname_I='',
+            argtype_I='',
+            default_expr_I='',
+            returns_rettype_I ='',
+            returns_table_I ='',
+            returns_table_column_name_I =[],
+            returns_table_column_type_I =[],
+            language_I = 'plpgsql',
+            as_I = '',
+            with_attributes_I=[],
+            verbose_I = False,
+            ):
+        '''create function using the CREATE OR REPLACE FUNCTION syntax
+
+        INPUT:
+        function_I='',
+        argmode_I='',
+        argname_I='',
+        argtype_I='',
+        default_expr_I='',
+        returns_rettype_I ='',
+        returns_table_I ='',
+        returns_table_column_name_I =[],
+        returns_table_column_type_I =[],
+        language_I = '',
+        as_I = '',
+        with_attributes_I=[],
+        '''
+
+        try:
+            cmd = 'CREATE OR REPLACE FUNCTION "%s" ( \n' %(function_I);
+
+            if argmode_I:
+                cmd += '%s' %(argmode_I);
+            elif argname_I:
+                cmd += '%s' %(argname_I);
+            elif argtype_I:
+                cmd += '%s' %(argtype_I);
+            elif default_expr_I: #need to check this
+                cmd += '%s' %(default_expr_I);
+            else:
+                cmd += ') \n';
+
+            if returns_rettype_I:
+                cmd += 'RETURNS %s \n ' %(returns_rettype_I);
+            elif returns_table_I:
+                cmd += 'RETURNS TABLE (';
+                for i in range(len(returns_table_column_name_I)):
+                    cmd += "%s %s " %(returns_table_column_name_I[i],
+                                      returns_table_column_type_I[i]);
+                cmd += ') \n';
+
+            if as_I:
+                cmd += '%s' %(as_I);
+            if language_I:
+                cmd += '%s' %(language_I);
+                
+            if with_attributes_I:
+                cmd += 'WITH (';
+                for i in range(len(with_attributes_I)):
+                    cmd += "%s " %(with_attributes_I[i]);
+                cmd += ') \n';
+
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def drop_function(self,conn,
+            function_I='',
+            argmode_I='',
+            argname_I='',
+            argtype_I='',
+            cascade_restrict_I='',
+            verbose_I = False,
+            ):
+        '''drop function using the DROP FUNCTION syntax
+
+        INPUT:
+        function_I='',
+        argmode_I='',
+        argname_I='',
+        argtype_I='',
+        cascade_restrict_I=string , [ CASCADE | RESTRICT ],
+        '''
+
+        try:
+            cmd = 'DROP FUNCTION IF EXISTS "%s" ( \n' %(function_I);
+
+            if argmode_I:
+                cmd += '%s' %(argmode_I);
+            elif argname_I:
+                cmd += '%s' %(argname_I);
+            elif argtype_I:
+                cmd += '%s' %(argtype_I);
+            else:
+                cmd += ') \n';
+
+            if cascade_restrict_I:
+                cmd += '%s \n ' %(cascade_restrict_I);
+
+            cmd += ';';
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def create_trigger(self,conn,
+            trigger_I='',
+            constraint_I='',
+            before_after_insteadOf_I='BEFORE',
+            event_I ='',
+            referenced_table_schema_I='public',
+            referenced_table_name_I='',
+            deferrable_clause_I ='',
+            for_clause_I ='',
+            when_conditions_I = [],
+            function_name_I = '',
+            function_arguments_I = '',
+            verbose_I = False,
+            ):
+        '''create trigger using the CREATE [CONSTRAINT] TRIGGER syntax
+
+        INPUT:
+        trigger_I='',
+        constraint_I='',
+        before_after_insteadOf_I='BEFORE',
+        event_I ='',
+        referenced_table_schema_I='public',
+        referenced_table_name_I='',
+        deferrable_clause_I ='',
+        for_clause_I ='',
+        when_conditions_I = [],
+        function_name_I = '',        
+        function_arguments_I = string, comma-separated list of arguments
+        '''
+
+        try:
+            if constraint_I:
+                cmd = 'CREATE CONSTRAINT TRIGGER "%s" \n' %(trigger_I);
+                assert(before_after_insteadOf_I=='AFTER')
+            else:
+                cmd = 'CREATE TRIGGER "%s" \n' %(trigger_I);
+
+            if before_after_insteadOf_I:
+                cmd += '%s \n ' %(before_after_insteadOf_I);
+            elif event_I:
+                cmd += '%s \n ' %(event_I);
+
+            cmd += 'FROM "%s"."%s" \n ' %(referenced_table_schema_I,
+                                          referenced_table_name_I);
+
+
+            if deferrable_clause_I:
+                cmd += '%s \n ' %(deferrable_clause_I);
+
+            if for_clause_I:
+                cmd += '%s \n ' %(for_clause_I);
+
+            if when_conditions_I:
+                cmd += 'WHEN (';
+                for i in range(len(when_conditions_I)):
+                    cmd += "%s %s " %(when_conditions_I[i]);
+                cmd += ') \n';
+
+            cmd += 'EXECUTE PROCEDURE %s (%s) ' %(function_name_I,function_arguments_I);
+            cmd += ';';
+
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def drop_trigger(self,conn,
+            trigger_I='',
+            referenced_table_schema_I='public',
+            referenced_table_name_I='',
+            cascade_restrict_I='',
+            verbose_I = False,
+            ):
+        '''drop trigger using the DROP TRIGGER syntax
+
+        INPUT:
+        trigger_I='',
+        referenced_table_schema_I='public',
+        referenced_table_name_I='',   
+        cascade_restrict_I=string , [ CASCADE | RESTRICT ],
+        '''
+
+        try:
+            cmd = 'DROP TRIGGER IF EXISTS "%s" \n' %(trigger_I);
+            
+            if referenced_table_name_I:
+                cmd += 'ON "%s"."%s" \n ' %(referenced_table_schema_I,
+                                          referenced_table_name_I);
+                
+            if cascade_restrict_I:
+                cmd += '%s \n ' %(cascade_restrict_I);
+            cmd += ';';
+
+            if verbose_I:
+                print(cmd);
+            try:
+                conn.execute(cmd);
+                conn.commit();
+            except SQLAlchemyError as e:
+                print(e);
+                conn.rollback();
+        except SQLAlchemyError as e:
+            print(e);
+
+    def make_definition(self,
+        definition_I = ''
+        ):
+        '''Return a postgres definition block
+        INPUT:
+        '''
+        cmd = '$$\n%s\n$$'%definition_I;
+        return cmd;
+
+    def make_script(self,
+            lines_I = [],
+        ):
+        '''Return a postgres script
+        INPUT:
+        '''
+        cmd = 'BEGIN \n';
+        for line in lines_I:
+            cmd += '\t%s;\n'%line
+        cmd +='END;'
+        return cmd;
