@@ -42,7 +42,8 @@ class sbaas_template_query(sbaas_base):
         return data_O;
     def add_rows_table(self,table_I,data_I,
             verbose_I = False,
-            raise_I = False):
+            raise_I = False,
+            safeInsert_I=False):
         '''add rows to table
         INPUT:
         table_I = string, table name
@@ -51,7 +52,7 @@ class sbaas_template_query(sbaas_base):
             try:
                 model_I = self.convert_tableString2SqlalchemyModel(table_I);
                 queryinsert = sbaas_base_query_insert(session_I=self.session,engine_I=self.engine,settings_I=self.settings,data_I=self.data);
-                queryinsert.add_rows_sqlalchemyModel(model_I,data_I,raise_I=raise_I);
+                queryinsert.add_rows_sqlalchemyModel(model_I,data_I,raise_I=raise_I,safeInsert_I=safeInsert_I);
             except Exception as e:
                 if raise_I: raise;
                 else: print(e);

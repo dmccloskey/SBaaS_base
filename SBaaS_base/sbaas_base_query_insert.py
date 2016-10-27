@@ -3,12 +3,15 @@ from sqlalchemy.exc import SQLAlchemyError
 
 class sbaas_base_query_insert(sbaas_base_query_select):
 
-    def add_rows_sqlalchemyModel(self,model_I,data_I,raise_I=False):
+    def add_rows_sqlalchemyModel(
+        self,model_I,data_I,
+        raise_I=False,safeInsert_I=False):
         '''add rows to model_I
         INPUT:
         model_I = sqlalchemy model object
         data_I = listDict of table rows to add
         raise_I = boolean, raise error
+        safeInsert_I = boolean, if True, each row is committed one-by-one
         '''
         #get the model columns (in order)
         model_columns = self.get_columns_sqlalchemyModel(
@@ -25,6 +28,13 @@ class sbaas_base_query_insert(sbaas_base_query_select):
                     # add data to the model
                     data_add = model_I(input_dict);
                     self.session.add(data_add);
+                    if safeInsert_I:
+                        try:
+                            self.session.commit();
+                        except SQLAlchemyError as e:
+                            self.session.rollback();
+                            if raise_I: raise;
+                            #else: print(e);
                 except SQLAlchemyError as e:
                     self.session.rollback();
                     if raise_I: raise;
@@ -34,16 +44,17 @@ class sbaas_base_query_insert(sbaas_base_query_select):
                     if raise_I: raise;
                     else: print(e);
             #commit the added data:
-            try:
-                self.session.commit();
-            except SQLAlchemyError as e:
-                self.session.rollback();
-                if raise_I: raise;
-                else: print(e);
-            except Exception as e:
-                self.session.rollback();
-                if raise_I: raise;
-                else: print(e);
+            if not safeInsert_I:
+                try:
+                    self.session.commit();
+                except SQLAlchemyError as e:
+                    self.session.rollback();
+                    if raise_I: raise;
+                    else: print(e);
+                except Exception as e:
+                    self.session.rollback();
+                    if raise_I: raise;
+                    else: print(e);
 
     def execute_insert(self,query_I,raise_I=False):
         '''execute a raw sql query
