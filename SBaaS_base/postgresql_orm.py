@@ -14,6 +14,37 @@ def return_postgresqlQueryFromSQLAlchemyQuery(query_I):
     #print(str(query_I.statement.compile(dialect=postgresql.dialect())));
     return query_O;
 
+def execute_query(conn,
+    cmd,
+    verbose_I=False,
+    execute_I=True,
+    commit_I=True,
+    return_response_I=False,
+    return_cmd_I=False,
+    ):
+    '''
+    execute a query
+    INPUT:
+    conn = session object
+    cmd = string
+    verbose_I = boolean, if True, cmd is printed to the screen
+    execute_I = boolean, if True, cmd is executed
+    commit_I = boolean, if True, executed cmd is committed,
+    return_response_I = boolean, if True, response from the executed cmd is returned,
+    return_cmd_I = boolean, if True, the cmd is returned
+    '''
+
+    if verbose_I: print(cmd);
+    if execute_I:
+        try:
+            ans = conn.execute(cmd);
+            if commit_I: conn.commit();
+            if return_response_I: return ans;
+        except SQLAlchemyError as e:
+            print(e);
+            conn.rollback();
+    if return_cmd_I: return cmd;
+
 class postgresql_orm():
     def __init__(self):
         self.engine = None;
@@ -102,66 +133,91 @@ class postgresql_orm():
             exit(-1);
     
     def create_database(self,conn,database_I='sbaas',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         """create a new database"""
         cmd = 'CREATE DATABASE "%s"' %(database_I);
-        if verbose_I:
-            print(cmd);
-        try:
-            conn.execute(cmd);
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
-            #conn.rollback();
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def drop_database(self,conn,database_I='sbaas',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         """drop a database"""
         cmd = 'DROP DATABASE IF EXISTS "%s"' %(database_I);
-        if verbose_I:
-            print(cmd);
-        try:
-            conn.execute(cmd);
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def drop_user(self,conn,user_I,
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         """drop a user"""
         cmd = 'DROP USER IF EXISTS "%s"' %(user_I);
-        if verbose_I:
-            print(cmd);
-        try:
-            conn.execute(cmd);
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def create_user(self,conn,user_I='guest',password_I='guest',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         '''create a new role with a password
         INPUT:
         user_I = username
         password_I = password'''
 
-        try:
-            cmd = 'CREATE USER "%s" ' %(user_I);
-            cmd += "WITH PASSWORD '%s'" %(password_I);
-            if verbose_I:
-                print(cmd);
-            conn.execute(cmd);
-            #conn.execute("commit");
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
-            #conn.rollback();
+        cmd = 'CREATE USER "%s" ' %(user_I);
+        cmd += "WITH PASSWORD '%s'" %(password_I);
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def grant_privileges(self,conn,user_I='guest',
             privileges_I=['SELECT'],
             tables_I=['ALL TABLES'],
             schema_I='public',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         '''grant privileges to user/role
         INPUT:
         user_I = username
@@ -178,19 +234,27 @@ class postgresql_orm():
             tables = tables[:-2];
             #cmd = 'GRANT %s ON %s IN SCHEMA %s TO "%s"' %(privileges,tables,schema_I,user_I);
             cmd = 'GRANT %s ON %s TO "%s"' %(privileges,tables,user_I);
-            if verbose_I:
-                print(cmd);
-            conn.execute(cmd);
-            conn.commit();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def revoke_privileges(self,conn,user_I='guest',
             privileges_I=['SELECT'],
             tables_I=['ALL TABLES'],
             schema_I='public',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         '''grant privileges to user/role
         INPUT:
         user_I = username
@@ -199,6 +263,7 @@ class postgresql_orm():
         schema_I = schema name,
         '''
 
+        data_O = [];
         try:
             privileges = ', '.join(privileges_I);
             tables = ', '.join(tables_I);
@@ -206,13 +271,19 @@ class postgresql_orm():
                 for privilege in privileges_I:
                     #cmd = 'REVOKE %s ON %s IN SCHEMA %s FROM "%s"' %(privilege,table,schema_I,user_I);
                     cmd = 'REVOKE %s ON "%s" FROM "%s"' %(privilege,table,user_I);
-                    if verbose_I:
-                        print(cmd);
-                    conn.execute(cmd);
-                    conn.commit();
+                    
+                    data = execute_query(conn,
+                        cmd,
+                        verbose_I=verbose_I,
+                        execute_I=execute_I,
+                        commit_I=commit_I,
+                        return_response_I=return_response_I,
+                        return_cmd_I=return_cmd_I,
+                        )
+                    if data: data_O.append(data)
+            if data_O: return data_O
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def set_sessionFromSettings(self,settings_I):
         '''set a session object ,database_I='sbaas01',user_I='guest',password_I='guest',host_I="localhost:5432"'''
@@ -303,7 +374,11 @@ class postgresql_orm():
             schema_I='public',
             using_I="",
             with_check_I="",
-            verbose_I = False
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''create table level policy
         INPUT:
@@ -314,7 +389,7 @@ class postgresql_orm():
         using_I = constraint for SELECT privilege
         with_check_ I = constraint for INSERT, UPDATE, DELETE privileges
         '''
-
+        data_O = [];
         try:
             privileges = ' '.join(privileges_I);
             for table in tables_I:
@@ -327,24 +402,29 @@ class postgresql_orm():
                     if privilege in ['UPDATE','INSERT','ALL']:
                         cmd += "WITH CHECK (%s) " %(using_I);
                     cmd += ';';
-                    if verbose_I:
-                        print(cmd);
-                    try:
-                        conn.execute(cmd);
-                        conn.commit();
-                    except SQLAlchemyError as e:
-                        print(e);
-                        conn.rollback();
+                    data = execute_query(conn,
+                        cmd,
+                        verbose_I=verbose_I,
+                        execute_I=execute_I,
+                        commit_I=commit_I,
+                        return_response_I=return_response_I,
+                        return_cmd_I=return_cmd_I,
+                        )
+                    if data: data_O.append(data)
+            if data_O: return data_O
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def drop_policy(self,conn,
             user_I='guest',
             privileges_I=['SELECT'],
             tables_I=['ALL TABLES'],
             schema_I='public',
-            verbose_I = False
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''create table level policy
         INPUT:
@@ -361,43 +441,52 @@ class postgresql_orm():
                     cmd = 'DROP POLICY IF EXISTS "%s_%s" ' %(user_I,privilege);
                     cmd += 'ON "%s"."%s" ' %(schema_I,table);
                     cmd += ';';
-                    if verbose_I:
-                        print(cmd);
-                    try:
-                        conn.execute(cmd);
-                        conn.commit();
-                    except SQLAlchemyError as e:
-                        print(e);
-                        conn.rollback();
+                    execute_query(conn,
+                        cmd,
+                        verbose_I=verbose_I,
+                        execute_I=execute_I,
+                        commit_I=commit_I,
+                        return_response_I=return_response_I,
+                        return_cmd_I=return_cmd_I,
+                        )   
         except SQLAlchemyError as e:
-            print(e);
-            #conn.rollback();            
+            print(e);            
     
     def create_sequence(self,conn,sequence_I='_id_seq',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         """create a new sequence"""
         cmd = 'CREATE SEQUENCE "%s"' %(sequence_I);
-        if verbose_I:
-            print(cmd);
-        try:
-            conn.execute(cmd);
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
-            conn.rollback();
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def drop_sequence(self,conn,sequence_I='_id_seq',
-            verbose_I=False):
+            verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,):
         """drop a sequence"""
         cmd = 'DROP SEQUENCE IF EXISTS "%s"' %(sequence_I);
-        if verbose_I:
-            print(cmd);
-        try:
-            conn.execute(cmd);
-            conn.commit();
-        except SQLAlchemyError as e:
-            print(e);
-            conn.rollback();
+        data = execute_query(conn,
+            cmd,
+            verbose_I=verbose_I,
+            execute_I=execute_I,
+            commit_I=commit_I,
+            return_response_I=return_response_I,
+            return_cmd_I=return_cmd_I,
+            )
+        if data: return data
 
     def alter_table_addConstraint(self,conn,
             constraint_name_I='',
@@ -407,6 +496,10 @@ class postgresql_orm():
             table_I='',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the ADD CONSTRAINT format
         INPUT:
@@ -419,7 +512,7 @@ class postgresql_orm():
 
         try:
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
-            cmd += 'ADD CONSTRAINT %s "%s"' %(constraint_type_I,constraint_name_I);
+            cmd += 'ADD CONSTRAINT "%s" %s  ' %(constraint_name_I,constraint_type_I);
             columns_str = '(';
             if constraint_columns_I:
                 for column in constraint_columns_I:
@@ -430,17 +523,17 @@ class postgresql_orm():
             columns_str += ')';
             cmd += columns_str;
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def alter_table_drop(self,conn,
             attribute_I='CONSTRAINT',
@@ -448,6 +541,10 @@ class postgresql_orm():
             tables_I='',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the DROP format
 
@@ -462,17 +559,17 @@ class postgresql_orm():
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
             cmd += 'DROP %s "%s"' %(attribute_I,attribute_name_I);
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def alter_table_action(self,conn,
             action_I='ENABLE ROW LEVEL SECURITY',
@@ -480,6 +577,10 @@ class postgresql_orm():
             tables_I=['ALL TABLES'],
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the ALTER TABLE action format
         INPUT:
@@ -487,24 +588,26 @@ class postgresql_orm():
         tables_I = list of tables
         schema_I = string
         '''
-
+        
+        data_O = [];
         try:
             for table in tables_I:
                 cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table);
                 cmd += '%s ' %(action_I);
                 cmd += '%s ' %(action_options_I);
                 cmd += ';';
-                if verbose_I:
-                    print(cmd);
-                try:
-                    conn.execute(cmd);
-                    conn.commit();
-                except SQLAlchemyError as e:
-                    print(e);
-                    conn.rollback();
+                data = execute_query(conn,
+                    cmd,
+                    verbose_I=verbose_I,
+                    execute_I=execute_I,
+                    commit_I=commit_I,
+                    return_response_I=return_response_I,
+                    return_cmd_I=return_cmd_I,
+                    )
+                if data: data_O.append(data)
+            if data_O: return data_O
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def create_table(self,conn,
             table_I='',
@@ -514,8 +617,12 @@ class postgresql_orm():
             table_constraints_options_I = [],
             like_sourceTable_schema_I = 'public',
             like_sourceTable_I = '',
-            like_options_I = 'INCLUDING ALL',            
+            like_options_I = 'INCLUDING ALL',  
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''create table
         INPUT:
@@ -534,20 +641,21 @@ class postgresql_orm():
             if initialize_pkey_I:
                 cmd += '(id integer NOT NULL \n CONSTRAINT "%s_pkey" PRIMARY KEY (id))\n'%table_I;
             elif like_sourceTable_I:
-                cmd += '(LIKE "%s"."%s" %s (id))\n'%(
+                cmd += '(LIKE "%s"."%s" %s )\n'%(
                     like_sourceTable_schema_I,like_sourceTable_I,
                     like_options_I);
             else:
                 cmd += '()\n';
             cmd += 'WITH (OIDS=FALSE);'
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
@@ -556,6 +664,10 @@ class postgresql_orm():
             schema_I='public',
             cascade_restrict_I='',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''drop table
         INPUT:
@@ -568,14 +680,15 @@ class postgresql_orm():
             if cascade_restrict_I:
                 cmd += '%s ' %(cascade_restrict_I);
             cmd += ';'
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
@@ -586,6 +699,10 @@ class postgresql_orm():
             table_I='',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the ADD format
 
@@ -601,14 +718,15 @@ class postgresql_orm():
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
             cmd += 'ADD %s "%s" %s' %(attribute_I,attribute_name_I,attribute_parameters_I);
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
             #conn.rollback();
@@ -620,6 +738,10 @@ class postgresql_orm():
             tables_I='',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the alter format
 
@@ -635,17 +757,17 @@ class postgresql_orm():
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
             cmd += 'ALTER %s "%s" %s' %(attribute_I,attribute_name_I,attribute_parameters_I);
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def alter_table_renameAttribute(self,conn,
             attribute_I='Column',
@@ -654,6 +776,10 @@ class postgresql_orm():
             tables_I='',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the alter format
 
@@ -669,23 +795,27 @@ class postgresql_orm():
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,tables_I);
             cmd += 'RENAME %s "%s" TO "%s"' %(attribute_I,attribute_name_I,attribute_name_new_I);
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def rename_table(self,conn,
             table_I='',
             table_new_I = '',
             schema_I='public',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''alter tables using the alter format
 
@@ -699,17 +829,17 @@ class postgresql_orm():
             cmd = 'ALTER TABLE IF EXISTS "%s"."%s" ' %(schema_I,table_I);
             cmd += 'RENAME TO "%s"."%s"' %(schema_I,table_new_I);
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
-            #conn.rollback();
 
     def create_function(self,conn,
             function_I='',
@@ -725,6 +855,10 @@ class postgresql_orm():
             as_I = '',
             with_attributes_I=[],
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''create function using the CREATE OR REPLACE FUNCTION syntax
 
@@ -778,14 +912,15 @@ class postgresql_orm():
                 cmd += ') \n';
 
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
@@ -796,6 +931,10 @@ class postgresql_orm():
             argtype_I='',
             cascade_restrict_I='',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''drop function using the DROP FUNCTION syntax
 
@@ -823,14 +962,15 @@ class postgresql_orm():
                 cmd += '%s \n ' %(cascade_restrict_I);
 
             cmd += ';';
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
@@ -847,6 +987,10 @@ class postgresql_orm():
             function_name_I = '',
             function_arguments_I = '',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''create trigger using the CREATE [CONSTRAINT] TRIGGER syntax
 
@@ -894,15 +1038,16 @@ class postgresql_orm():
 
             cmd += 'EXECUTE PROCEDURE %s (%s) ' %(function_name_I,function_arguments_I);
             cmd += ';';
-
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
@@ -912,6 +1057,10 @@ class postgresql_orm():
             referenced_table_name_I='',
             cascade_restrict_I='',
             verbose_I = False,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
             ):
         '''drop trigger using the DROP TRIGGER syntax
 
@@ -932,15 +1081,15 @@ class postgresql_orm():
             if cascade_restrict_I:
                 cmd += '%s \n ' %(cascade_restrict_I);
             cmd += ';';
-
-            if verbose_I:
-                print(cmd);
-            try:
-                conn.execute(cmd);
-                conn.commit();
-            except SQLAlchemyError as e:
-                print(e);
-                conn.rollback();
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
         except SQLAlchemyError as e:
             print(e);
 
