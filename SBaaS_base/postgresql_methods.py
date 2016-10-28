@@ -1,4 +1,4 @@
-from os import system
+﻿from os import system
 from .postgresql_orm_base import *
 from .postgresql_orm import postgresql_orm
 
@@ -64,7 +64,8 @@ class postgresql_methods(postgresql_orm):
         schema_I='',
         table_name_I='',
         partition_schema_I='',
-        partition_table_name_I='',
+        partition_lookup_schema_I='',
+        partition_lookup_table_name_I='',
         list_range_I = 'LIST',
         column_name_I = 'analysis_id',
         constraint_column_I='analysis_id',
@@ -80,179 +81,195 @@ class postgresql_methods(postgresql_orm):
         '''
 
         #declare variables
-        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n_result record; \n';
+        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n_partitionidstr text;  \n_result record; \n';
         function_body_begin = 'BEGIN \n';
 
         #lookup the partition id
         function_body_selectPartitionID='_partitionid := EXECUTE \n';
         function_body_selectPartitionID+="'";
-        function_body_selectPartitionID+='SELECT partition_id FROM "%s"."%s" WHERE "%s"."%s".partition_column = NEW."%s"'%(
-            partition_schema_I,partition_table_name_I,
-            partition_schema_I,partition_table_name_I,
-            column_name_I);
+        function_body_selectPartitionID+='SELECT partition_id FROM "%s"."%s" WHERE "%s"."%s"."%s" = NEW."%s"'%(
+            partition_lookup_schema_I,partition_lookup_table_name_I,
+            partition_lookup_schema_I,partition_lookup_table_name_I,
+            constraint_column_I,column_name_I);
         function_body_selectPartitionID+="'; \n";
         function_body_begin+=function_body_selectPartitionID;
         
         function_body_begin+='IF _partitionid IS NULL \n';
 
         #if the partition id does not exist, make one
-        function_body_insertPartitionValue='EXECUTE \n';
-        function_body_insertPartitionValue+="'";
+        function_body_insertPartitionValue='EXECUTE \n quote_literal(';
         function_body_insertPartitionValue+='INSERT INTO "%s"."%s" (partition_column,partition_value,used_,comment_) \n'%(
-            partition_schema_I,partition_table_name_I);
+            partition_lookup_schema_I,partition_lookup_table_name_I);
         function_body_insertPartitionValue+="VALUES ('%s',"%(
             constraint_column_I);
         function_body_insertPartitionValue+='NEW."%s",'%(constraint_column_I);
         function_body_insertPartitionValue+="%s,%s)"%('true','null');
-        function_body_insertPartitionValue+="'; \n";
+        function_body_insertPartitionValue+="); \n";
         function_body_begin+=function_body_insertPartitionValue;
 
         #lookup the partition id
         function_body_begin+=function_body_selectPartitionID;    
 
+        #create the partition constraints
+        ##TODO make function to calculate unique partition id based on schema,table,user,partition_column,partition_value
+        add_partitionIDString = ''' _partitionidstr := to_char(_partitionid, '999'); \n'''
+        function_body_begin+=add_partitionIDString;
+
         #define the new tablename
-        function_body_newTable='_tablename := "%s"_||_partitionid; \n'%(
+        function_body_newTable=''' _tablename := quote_ident(%s)||'_'||_partitionidstr; \n '''%(
             table_name_I);
-        function_body_begin+=function_body_newTable;
-        #function_body_newTable='_tablename := "%s"."%s"_||_partitionid;'%(
-        #    schema_I,table_name_I);    
+        function_body_begin+=function_body_newTable;   
 
         #make a new partition table (if it does not exist)
-        create_partitionTable = self.create_table(conn,
-                    table_I='_tablename',
-                    #table_I=table_name_partition,
-                    schema_I=schema_I,
-                    initialize_pkey_I = False,
-                    table_constraints_I = [],
-                    table_constraints_options_I = [],
-                    like_sourceTable_schema_I = schema_I,
-                    like_sourceTable_I = table_name_I,
-                    like_options_I = 'INCLUDING ALL',            
-                    verbose_I = verbose_I,
-                    execute_I = False,
-                    commit_I=False,
-                    return_response_I=False,
-                    return_cmd_I=True,
-                    )
-        function_body_begin+='EXECUTE \n';
-        function_body_begin+="'";
+        create_partitionTable = '''CREATE TABLE IF EXISTS '"%s".'||quote_ident(_tablename) (LIKE "%s"."%s" INCLUDING ALL )
+WITH (OIDS=FALSE);''' %(partition_schema_I,schema_I,table_name_I)
+        #create_partitionTable = self.create_table(conn,
+        #            table_I='_tablename',
+        #            #table_I=table_name_partition,
+        #            schema_I=partition_schema_I,
+        #            initialize_pkey_I = False,
+        #            table_constraints_I = [],
+        #            table_constraints_options_I = [],
+        #            like_sourceTable_schema_I = schema_I,
+        #            like_sourceTable_I = table_name_I,
+        #            like_options_I = 'INCLUDING ALL',            
+        #            verbose_I = verbose_I,
+        #            execute_I = False,
+        #            commit_I=False,
+        #            return_response_I=False,
+        #            return_cmd_I=True,
+        #            )
+        function_body_begin+='EXECUTE \n quote_literal(';
         function_body_begin+=create_partitionTable; 
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
+        function_body_begin+="); \n";
         
         #create the partition constraints
-        partition_constraint = '''%s_||%s||_%s'''%(table_name_I,'_partitionid',constraint_id_I)
-        constraint_clause = '''"%s" %s NEW."%s" '''%(constraint_column_I,
-                                constraint_comparator_I,constraint_column_I)
-        #constraint_clause = '''"%s" %s '%s' '''%(constraint_column_I,
-        #                        constraint_comparator_I,constraint_clause_I)
-        add_partitionTableConstraints = self.alter_table_addConstraint(conn,
-                    constraint_name_I=partition_constraint,
-                    constraint_type_I='CHECK',
-                    constraint_columns_I=[],
-                    constraint_clause_I=constraint_clause,
-                    table_I='_tablename',
-                    schema_I=schema_I,          
-                    verbose_I = verbose_I,
-                    execute_I = False,
-                    commit_I=False,
-                    return_response_I=False,
-                    return_cmd_I=True,
-                    )
+        add_partitionTableConstraints = '''ALTER TABLE IF EXISTS '"%s".'||quote_ident(_tablename) ADD CONSTRAINT quote_ident(_tablename)||'_check%s' CHECK  ("%s" %s NEW."%s");'''%(
+            partition_schema_I,constraint_id_I, constraint_column_I,constraint_comparator_I,constraint_column_I);
+        #partition_constraint = ''' quote_ident(_tablename)||'_'||_partitionid||'_%s' '''%(table_name_I,'_partitionid',constraint_id_I)
+        #constraint_clause = '''"%s" %s NEW."%s" '''%(constraint_column_I,
+        #                        constraint_comparator_I,constraint_column_I)
+        #add_partitionTableConstraints = self.alter_table_addConstraint(conn,
+        #            constraint_name_I=partition_constraint,
+        #            constraint_type_I='CHECK',
+        #            constraint_columns_I=[],
+        #            constraint_clause_I=constraint_clause,
+        #            table_I='_tablename',
+        #            schema_I=partition_schema_I,          
+        #            verbose_I = verbose_I,
+        #            execute_I = False,
+        #            commit_I=False,
+        #            return_response_I=False,
+        #            return_cmd_I=True,
+        #            )
         function_body_begin+=' \n';
-        function_body_begin+='EXECUTE \n';
-        function_body_begin+="'";
+        function_body_begin+='EXECUTE \n quote_literal(';
         function_body_begin+=add_partitionTableConstraints; 
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
+        function_body_begin+="); \n";
 
         #assign inheritance        
         action_options = '"%s"."%s"'%(
             schema_I,table_name_I); 
-        add_partitionTableInheritance = self.alter_table_action(conn,
-            action_I='INHERIT',
-            action_options_I=action_options,
-            tables_I=['_tablename'],
-            schema_I=schema_I,
-            verbose_I = verbose_I,
-            execute_I = False,
-            commit_I=False,
-            return_response_I=False,
-            return_cmd_I=True,
-            )
+        add_partitionTableInheritance = '''ALTER TABLE IF EXISTS '"%s".'||quote_ident(_tablename) INHERIT %s;'''%(
+            partition_schema_I,action_options)
+        #add_partitionTableInheritance = self.alter_table_action(conn,
+        #    action_I='INHERIT',
+        #    action_options_I=action_options,
+        #    tables_I=['_tablename'],
+        #    schema_I=partition_schema_I,
+        #    verbose_I = verbose_I,
+        #    execute_I = False,
+        #    commit_I=False,
+        #    return_response_I=False,
+        #    return_cmd_I=True,
+        #    )
         function_body_begin+=' \n';
-        function_body_begin+='EXECUTE \n';
-        function_body_begin+="'";
-        function_body_begin+=add_partitionTableInheritance[0];
+        function_body_begin+='EXECUTE \n quote_literal(';
+        #function_body_begin+=add_partitionTableInheritance[0];
+        function_body_begin+=add_partitionTableInheritance;
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
+        function_body_begin+="); \n";
 
         #assign privileges (if they do not exist) 
-        add_partitionTableOwner = self.alter_table_action(conn,
-            action_I='OWNER TO',
-            action_options_I=user_I,
-            tables_I=['_tablename'],
-            schema_I=schema_I,
-            verbose_I = verbose_I,
-            execute_I = False,
-            commit_I=False,
-            return_response_I=False,
-            return_cmd_I=True,
-            )
+        add_partitionTableOwner = '''ALTER TABLE IF EXISTS '"%s".'||quote_ident(_tablename) OWNER TO "%s";'''%(
+            partition_schema_I,user_I)
+        #add_partitionTableOwner = self.alter_table_action(conn,
+        #    action_I='OWNER TO',
+        #    action_options_I=user_I,
+        #    tables_I=['_tablename'],
+        #    schema_I=schema_I,
+        #    verbose_I = verbose_I,
+        #    execute_I = False,
+        #    commit_I=False,
+        #    return_response_I=False,
+        #    return_cmd_I=True,
+        #    )
         function_body_begin+=' \n';
-        function_body_begin+='EXECUTE \n';
-        function_body_begin+="'";
-        function_body_begin+=add_partitionTableOwner[0]; 
+        function_body_begin+='EXECUTE \n quote_literal(';
+        function_body_begin+=add_partitionTableOwner; 
+        #function_body_begin+=add_partitionTableOwner[0]; 
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
-        add_partitionTablePrivileges = self.grant_privileges(
-            conn,user_I=user_I,
-            privileges_I=['ALL'],
-            tables_I=['_tablename'],
-            schema_I=schema_I,
-            verbose_I = verbose_I,
-            execute_I = False,
-            commit_I=False,
-            return_response_I=False,
-            return_cmd_I=True,
-            )
+        function_body_begin+="); \n";
+        add_partitionTablePrivileges = '''GRANT ALL ON '"%s".'||quote_ident(_tablename) TO "%s" '''%(
+            partition_schema_I,user_I)
+        #add_partitionTablePrivileges = self.grant_privileges(
+        #    conn,user_I=user_I,
+        #    privileges_I=['ALL'],
+        #    tables_I=['_tablename'],
+        #    schema_I=partition_schema_I,
+        #    verbose_I = verbose_I,
+        #    execute_I = False,
+        #    commit_I=False,
+        #    return_response_I=False,
+        #    return_cmd_I=True,
+        #    )
         function_body_begin+=' \n';
-        function_body_begin+='EXECUTE \n';
-        function_body_begin+="'";
+        function_body_begin+='EXECUTE \n quote_literal(';
         function_body_begin+=add_partitionTablePrivileges;  
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
+        function_body_begin+="); \n";
 
         function_body_begin+='END IF; \n';
 
         #define the new tablename
-        function_body_newTable='_tablename := "%s"_||_partitionid; \n'%(
-            table_name_I);
         function_body_begin+=function_body_newTable;
 
         #insert data into the partition table  		
-        function_body_insert = "EXECUTE 'INSERT INTO ";
-        function_body_insert += '"%s". ' %(schema_I);
-        function_body_insert += "|| quote_ident(_tablename) || ' VALUES ($1.*)' USING NEW; \n"	
+        function_body_insert = '''EXECUTE 'INSERT INTO "%s".'|| quote_ident(_tablename) || ' VALUES ($1.*)' USING NEW; \n'''%(
+            partition_schema_I);
         function_body_begin+=function_body_insert; 
 
         function_body_begin+='RETURN NULL; \nEND; \n'
 
-        function = function_body_declare+function_body_begin;
-        self.create_function(conn,
-                    function_I=function,
-                    argmode_I='',
-                    argname_I='',
-                    argtype_I='',
-                    default_expr_I='',
-                    returns_rettype_I ='TRIGGER',
-                    returns_table_I ='',
-                    returns_table_column_name_I =[],
-                    returns_table_column_type_I =[],
-                    language_I = 'plpgsql',
-                    as_I = as_I,
-                    with_attributes_I=[],
-                    verbose_I = verbose_I,
+        function = "$BODY% \n"+function_body_declare+function_body_begin+"$BODY% \n";
+        function_name = '%s_partitionTrigFunc'%(table_name_I)
+        #function_script = '''CREATE OR REPLACE FUNCTION "%s"."%s" () \nRETURNS TRIGGER \n%s plpgsql;'''%(
+        #    schema_I,function_name,function_body_begin);
+        function_script = self.create_function(conn,
+            schema_I=schema_I,
+            function_I=function_name,
+            argmode_I='',
+            argname_I='',
+            argtype_I='',
+            default_expr_I='',
+            returns_rettype_I ='TRIGGER',
+            returns_table_I ='',
+            returns_table_column_name_I =[],
+            returns_table_column_type_I =[],
+            language_I = 'plpgsql',
+            as_I = function,
+            with_attributes_I=[],
+            verbose_I = verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
+            #execute_I = False,
+            #commit_I=False,
+            #return_response_I=False,
+            #return_cmd_I=True,
                     )	
 
     def create_tablePartitionTrigger(

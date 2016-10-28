@@ -212,7 +212,7 @@ class postgresql_orm():
     def grant_privileges(self,conn,user_I='guest',
             privileges_I=['SELECT'],
             tables_I=['ALL TABLES'],
-            schema_I='public',
+            schemas_I=['public'],
             verbose_I = False,
             execute_I = True,
             commit_I=True,
@@ -229,8 +229,15 @@ class postgresql_orm():
         try:
             privileges = ', '.join(privileges_I);
             tables = '';
-            for table in tables_I:
-                tables += ('"%s", '%(table));
+            if type(schemas_I)==type(''):
+                for i,table in enumerate(tables_I):
+                    tables += ('"%s"."%s", '%(schemas_I,table));
+            elif len(tables_I)==len(schemas_I):
+                for i,table in enumerate(tables_I):
+                    tables += ('"%s"."%s", '%(schemas_I[i],table));
+            elif len(schemas_I)==1:
+                for i,table in enumerate(tables_I):
+                    tables += ('"%s"."%s", '%(schemas_I[0],table));
             tables = tables[:-2];
             #cmd = 'GRANT %s ON %s IN SCHEMA %s TO "%s"' %(privileges,tables,schema_I,user_I);
             cmd = 'GRANT %s ON %s TO "%s"' %(privileges,tables,user_I);
@@ -452,14 +459,16 @@ class postgresql_orm():
         except SQLAlchemyError as e:
             print(e);            
     
-    def create_sequence(self,conn,sequence_I='_id_seq',
+    def create_sequence(self,conn,
+            schema_I='',
+            sequence_I='_id_seq',
             verbose_I = False,
             execute_I = True,
             commit_I=True,
             return_response_I=False,
             return_cmd_I=False,):
         """create a new sequence"""
-        cmd = 'CREATE SEQUENCE "%s"' %(sequence_I);
+        cmd = 'CREATE SEQUENCE "%s"."%s"' %(schema_I,sequence_I);
         data = execute_query(conn,
             cmd,
             verbose_I=verbose_I,
@@ -470,14 +479,16 @@ class postgresql_orm():
             )
         if data: return data
 
-    def drop_sequence(self,conn,sequence_I='_id_seq',
+    def drop_sequence(self,conn,
+            schema_I='',
+            sequence_I='_id_seq',
             verbose_I = False,
             execute_I = True,
             commit_I=True,
             return_response_I=False,
             return_cmd_I=False,):
         """drop a sequence"""
-        cmd = 'DROP SEQUENCE IF EXISTS "%s"' %(sequence_I);
+        cmd = 'DROP SEQUENCE IF EXISTS "%s"."%s"' %(schema_I,sequence_I);
         data = execute_query(conn,
             cmd,
             verbose_I=verbose_I,
@@ -842,6 +853,7 @@ class postgresql_orm():
             print(e);
 
     def create_function(self,conn,
+            schema_I='',
             function_I='',
             argmode_I='',
             argname_I='',
@@ -878,7 +890,7 @@ class postgresql_orm():
         '''
 
         try:
-            cmd = 'CREATE OR REPLACE FUNCTION "%s" ( \n' %(function_I);
+            cmd = 'CREATE OR REPLACE FUNCTION "%s"."%s" ( \n' %(schema_I,function_I);
 
             if argmode_I:
                 cmd += '%s' %(argmode_I);
@@ -901,9 +913,9 @@ class postgresql_orm():
                 cmd += ') \n';
 
             if as_I:
-                cmd += '%s' %(as_I);
+                cmd += 'AS %s' %(as_I);
             if language_I:
-                cmd += '%s' %(language_I);
+                cmd += 'LANGUAGE %s' %(language_I);
                 
             if with_attributes_I:
                 cmd += 'WITH (';
