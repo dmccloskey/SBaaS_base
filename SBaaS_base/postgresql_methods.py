@@ -73,7 +73,16 @@ class postgresql_methods(postgresql_orm):
         constraint_id_I='01',
         verbose_I=True,
         ):
-        '''create a table partition
+        '''create a table partition trigger function
+        1. Makes a unique partition_id
+        2. Creates the partition table
+            creates the check constraint
+            creates the inheritance link
+            assigns table ownership
+            grants user privileges
+        3. Inserts rows into the partition table
+
+
 
         EXAMPLE:
 
@@ -274,74 +283,43 @@ WITH (OIDS=FALSE);''' %(partition_schema_I,schema_I,table_name_I)
 
     def create_tablePartitionTrigger(
         self,conn,
+        schema_I='',
         table_name_I='',
         table_name_partitions_I = [],
         verbose_I=True
         ):
-        #example:			
-        #CREATE OR REPLACE FUNCTION measurement_insert_trigger()
-        #RETURNS TRIGGER AS $$
-        #BEGIN
-        #    INSERT INTO measurement_y2008m01 VALUES (NEW.*);
-        #    RETURN NULL;
-        #END;
-        #$$
-        #LANGUAGE plpgsql;
-        cmd_I = "INSERT"
-        function = '"%s_%s_triggerFunction"'%(table_name_I,cmd_I)	
-        lines = [];
-        for table_name_partition in table_name_partitions_I:
-            line = 'INSERT INTO "%s" VALUES (NEW.*)'%table_name_partition;
-            lines.append(line);
-        lines.append('RETURN NULL');
-        as_I = self.make_definition(
-            definition_I = self.make_script(
-                lines)
-            );
-        self.create_function(conn,
-                    function_I=function,
-                    argmode_I='',
-                    argname_I='',
-                    argtype_I='',
-                    default_expr_I='',
-                    returns_rettype_I ='TRIGGER',
-                    returns_table_I ='',
-                    returns_table_column_name_I =[],
-                    returns_table_column_type_I =[],
-                    language_I = 'plpgsql',
-                    as_I = as_I,
-                    with_attributes_I=[],
-                    verbose_I = verbose_I,
-                    )	
 
         #Example:
         #CREATE TRIGGER insert_measurement_trigger
         #    BEFORE INSERT ON measurement
         #    FOR EACH ROW EXECUTE PROCEDURE measurement_insert_trigger();	
-        trigger = '"%s_%s_trigger"'%(table_name_I,cmd_I)
+        trigger = '%s_partitionTrig'%(table_name_I)
         self.create_trigger(self,conn,
-                    trigger_I=trigger,
-                    constraint_I='',
-                    before_after_insteadOf_I='BEFORE',
-                    event_I ='',
-                    referenced_table_schema_I='public',
-                    referenced_table_name_I=table_name_I,
-                    deferrable_clause_I ='',
-                    for_clause_I ='FOR EACH ROW',
-                    when_conditions_I = [],
-                    function_name_I = '',
-                    function_arguments_I = '',
-                    verbose_I = verbose_I,
-                    )
+            schema_I=schema_I,
+            trigger_I=trigger,
+            constraint_I='',
+            before_after_insteadOf_I='BEFORE',
+            event_I ='',
+            referenced_table_schema_I='public',
+            referenced_table_name_I=table_name_I,
+            deferrable_clause_I ='',
+            for_clause_I ='FOR EACH ROW',
+            when_conditions_I = [],
+            function_name_I = '',
+            function_arguments_I = '',
+            verbose_I = verbose_I,
+            )
 
-    def drop_tablePartitionTrigger(self,conn,
+    def drop_tablePartitionTriggerFunction(self,conn,
+        schema_I='public',
         table_name_I='',
         verbose_I=True,
         ):
         
         cmd_I = "INSERT"
-        function = '"%s_%s_triggerFunction"'%(table_name_I,cmd_I)	
+        function_name = '%s_partitionTrigFunc'%(table_name_I)	
         self.drop_function(conn,
+            schema_I=schema_I,
             function_I=function,
             argmode_I='',
             argname_I='',
@@ -349,9 +327,16 @@ WITH (OIDS=FALSE);''' %(partition_schema_I,schema_I,table_name_I)
             cascade_restrict_I='',
             verbose_I = verbose_I,
             )	
+
+    def drop_tablePartitionTrigger(self,conn,
+        schema_I='public',
+        table_name_I='',
+        verbose_I=True,
+        ):
         		
-        trigger = '"%s_%s_trigger"'%(table_name_I,cmd_I)
+        trigger = '%s_partitionTrig'%(table_name_I)
         self.drop_trigger(conn,
+            schema_I=schema_I,
             trigger_I=trigger,
             referenced_table_schema_I='public',
             referenced_table_name_I=table_name_I,

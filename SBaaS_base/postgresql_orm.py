@@ -875,6 +875,7 @@ class postgresql_orm():
         '''create function using the CREATE OR REPLACE FUNCTION syntax
 
         INPUT:
+        schema_I='',
         function_I='',
         argmode_I='',
         argname_I='',
@@ -937,6 +938,7 @@ class postgresql_orm():
             print(e);
 
     def drop_function(self,conn,
+            schema_I='',
             function_I='',
             argmode_I='',
             argname_I='',
@@ -951,6 +953,7 @@ class postgresql_orm():
         '''drop function using the DROP FUNCTION syntax
 
         INPUT:
+        schema_I='',
         function_I='',
         argmode_I='',
         argname_I='',
@@ -959,7 +962,7 @@ class postgresql_orm():
         '''
 
         try:
-            cmd = 'DROP FUNCTION IF EXISTS "%s" ( \n' %(function_I);
+            cmd = 'DROP FUNCTION IF EXISTS "%s"."%s" ( \n' %(schema_I,function_I);
 
             if argmode_I:
                 cmd += '%s' %(argmode_I);
@@ -987,6 +990,7 @@ class postgresql_orm():
             print(e);
 
     def create_trigger(self,conn,
+            schema_I='',
             trigger_I='',
             constraint_I='',
             before_after_insteadOf_I='BEFORE',
@@ -1007,6 +1011,7 @@ class postgresql_orm():
         '''create trigger using the CREATE [CONSTRAINT] TRIGGER syntax
 
         INPUT:
+        schema_I='',
         trigger_I='',
         constraint_I='',
         before_after_insteadOf_I='BEFORE',
@@ -1022,7 +1027,7 @@ class postgresql_orm():
 
         try:
             if constraint_I:
-                cmd = 'CREATE CONSTRAINT TRIGGER "%s" \n' %(trigger_I);
+                cmd = 'CREATE CONSTRAINT TRIGGER "%s"."%s" \n' %(schema_I,trigger_I);
                 assert(before_after_insteadOf_I=='AFTER')
             else:
                 cmd = 'CREATE TRIGGER "%s" \n' %(trigger_I);
@@ -1064,6 +1069,7 @@ class postgresql_orm():
             print(e);
 
     def drop_trigger(self,conn,
+            schema_I='',
             trigger_I='',
             referenced_table_schema_I='public',
             referenced_table_name_I='',
@@ -1077,6 +1083,7 @@ class postgresql_orm():
         '''drop trigger using the DROP TRIGGER syntax
 
         INPUT:
+        schema_I='',
         trigger_I='',
         referenced_table_schema_I='public',
         referenced_table_name_I='',   
@@ -1084,7 +1091,7 @@ class postgresql_orm():
         '''
 
         try:
-            cmd = 'DROP TRIGGER IF EXISTS "%s" \n' %(trigger_I);
+            cmd = 'DROP TRIGGER IF EXISTS "%s"."%s" \n' %(schema_I,trigger_I);
             
             if referenced_table_name_I:
                 cmd += 'ON "%s"."%s" \n ' %(referenced_table_schema_I,
