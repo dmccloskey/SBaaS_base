@@ -360,23 +360,63 @@ WITH (OIDS=FALSE);''' %(partition_schema_I,schema_I,table_name_I)
             )
 
 
-    def create_databaseShardFunction(self,
+    def create_databaseShardSequenceGenerator(self,
         schema_I,
         function_name_I,
         ):
         '''
-        Create a database sharding function using postgresql schemas
+        Create a database sharding sequence generating function using postgresql schemas
         INPUT:
         schema_I
         function_name_I
         
         BASED ON:
-        sharding based on tablename:
+        sharding based on schema:
         https://www.tumblr.com/login_required/instagram-engineering/10853187575
         http://rob.conery.io/2014/05/29/a-better-id-generator-for-postgresql/
 
+        TODO...
         '''
         #create schema shard_1;
+        #create sequence shard_1.global_id_sequence;
+
+        '''CREATE OR REPLACE FUNCTION "%s"."%s"(OUT result bigint) AS $$
+        DECLARE
+            our_epoch bigint := 1314220021721;
+            seq_id bigint;
+            now_millis bigint;
+            -- the id of this DB shard, must be set for each
+            -- schema shard you have - you could pass this as a parameter too
+            shard_id int := 1;
+        BEGIN
+            SELECT nextval('shard_1.global_id_sequence') % 1024 INTO seq_id;
+
+            SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000) INTO now_millis;
+            result := (now_millis - our_epoch) << 23;
+            result := result | (shard_id << 10);
+            result := result | (seq_id);
+        END;
+        $$ LANGUAGE PLPGSQL;'''%(
+            schema_I,function_name_I)
+
+        #select shard_1.id_generator();
+        pass;
+    def create_tablePartitionSequenceGenerator(self,
+        schema_I,
+        function_name_I,
+        ):
+        '''
+        Create a table partitioning sequencing generating function
+        INPUT:
+        schema_I
+        function_name_I
+        
+        BASED ON:
+        partitioning based on tablename:
+        
+        TODO...
+        '''
+
         #create sequence shard_1.global_id_sequence;
 
         '''CREATE OR REPLACE FUNCTION "%s"."%s"(OUT result bigint) AS $$
