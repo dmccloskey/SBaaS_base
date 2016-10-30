@@ -990,11 +990,12 @@ class postgresql_orm():
             print(e);
 
     def create_trigger(self,conn,
-            schema_I='',
             trigger_I='',
             constraint_I='',
             before_after_insteadOf_I='BEFORE',
             event_I ='',
+            schema_I='public',
+            table_name_I = '',
             referenced_table_schema_I='public',
             referenced_table_name_I='',
             deferrable_clause_I ='',
@@ -1011,11 +1012,12 @@ class postgresql_orm():
         '''create trigger using the CREATE [CONSTRAINT] TRIGGER syntax
 
         INPUT:
-        schema_I='',
         trigger_I='',
         constraint_I='',
         before_after_insteadOf_I='BEFORE',
         event_I ='',
+        schema_I='public',
+        table_name_I = '',
         referenced_table_schema_I='public',
         referenced_table_name_I='',
         deferrable_clause_I ='',
@@ -1027,33 +1029,30 @@ class postgresql_orm():
 
         try:
             if constraint_I:
-                cmd = 'CREATE CONSTRAINT TRIGGER "%s"."%s" \n' %(schema_I,trigger_I);
+                cmd = 'CREATE CONSTRAINT TRIGGER "%s" \n' %(trigger_I);
                 assert(before_after_insteadOf_I=='AFTER')
             else:
                 cmd = 'CREATE TRIGGER "%s" \n' %(trigger_I);
 
             if before_after_insteadOf_I:
-                cmd += '%s \n ' %(before_after_insteadOf_I);
-            elif event_I:
-                cmd += '%s \n ' %(event_I);
+                cmd += '%s %s \n ' %(before_after_insteadOf_I,event_I);
 
-            cmd += 'FROM "%s"."%s" \n ' %(referenced_table_schema_I,
+            cmd += 'ON "%s"."%s" \n ' %(schema_I,
+                                          table_name_I);
+            if referenced_table_name_I:
+                cmd += 'FROM "%s"."%s" \n ' %(referenced_table_schema_I,
                                           referenced_table_name_I);
-
-
             if deferrable_clause_I:
                 cmd += '%s \n ' %(deferrable_clause_I);
-
             if for_clause_I:
                 cmd += '%s \n ' %(for_clause_I);
-
             if when_conditions_I:
                 cmd += 'WHEN (';
                 for i in range(len(when_conditions_I)):
                     cmd += "%s %s " %(when_conditions_I[i]);
                 cmd += ') \n';
 
-            cmd += 'EXECUTE PROCEDURE %s (%s) ' %(function_name_I,function_arguments_I);
+            cmd += 'EXECUTE PROCEDURE "%s" (%s) ' %(function_name_I,function_arguments_I);
             cmd += ';';
             
             data = execute_query(conn,
@@ -1069,7 +1068,7 @@ class postgresql_orm():
             print(e);
 
     def drop_trigger(self,conn,
-            schema_I='',
+            #schema_I='',
             trigger_I='',
             referenced_table_schema_I='public',
             referenced_table_name_I='',
@@ -1083,7 +1082,7 @@ class postgresql_orm():
         '''drop trigger using the DROP TRIGGER syntax
 
         INPUT:
-        schema_I='',
+        #schema_I='',
         trigger_I='',
         referenced_table_schema_I='public',
         referenced_table_name_I='',   
@@ -1091,7 +1090,9 @@ class postgresql_orm():
         '''
 
         try:
-            cmd = 'DROP TRIGGER IF EXISTS "%s"."%s" \n' %(schema_I,trigger_I);
+            cmd = 'DROP TRIGGER IF EXISTS "%s" \n' %(trigger_I);
+            #triggers are not schema qualified
+            #cmd = 'DROP TRIGGER IF EXISTS "%s"."%s" \n' %(schema_I,trigger_I);
             
             if referenced_table_name_I:
                 cmd += 'ON "%s"."%s" \n ' %(referenced_table_schema_I,
@@ -1132,3 +1133,77 @@ class postgresql_orm():
             cmd += '\t%s;\n'%line
         cmd +='END;'
         return cmd;
+
+    def copy_table(self,
+        conn,
+        schema_I,
+        table_name_I,
+        column_names_I = [],
+        query_I = '',
+        to_or_from_I='TO',
+        filename_I='',
+        program_cmd_I='',
+        stdin_or_stdout_I='',
+        with_I=['FORMAT'],
+        with_options_delimiter_I=['binary'],
+        verbose_I = True,
+        execute_I = True,
+        commit_I=True,
+        return_response_I=False,
+        return_cmd_I=False,
+        ):
+        '''Copy a table to disk
+        INPUT:
+        conn,
+        schema_I=string,
+        table_I=string,
+        filename_I=string,
+        delimiter_I=string, e.g., ',',
+
+        '''
+        try:
+            cmd = '''COPY "%s"."%s" ''' %(
+                schema_I,table_name_I);
+
+            if column_names_I:
+                cmd+='(';
+                for c in column_names_I:
+                    cmd+='"%s",'%(c);
+                cmd=cmd[:-1];
+                cmd+=') '
+
+            if query_I:
+                cmd+='(%s) '%(query_I)
+
+            cmd += '\n %s '%(to_or_from_I);
+            if filename_I:
+                cmd+="'%s' "%(filename_I);
+            elif program_cmd_I:
+                cmd+="PROGRAM '%s' "%(program_cmd_I);
+            elif stdin_or_stdout_I:
+                cmd+="%s "%(stdin_or_stdout_I);
+
+            if with_I:
+                cmd+='\n WITH (';
+                for i,c in with_I:
+                    if c in ['DELIMITER','NULL','QUOTE','ESCAPE','ENCODING']:
+                        cmd+="%s '%s', "%(c,with_options_delimiter_I[i]);
+                    else:
+                        cmd+="%s %s, "%(c,with_options_delimiter_I[i]);
+                cmd=cmd[:-1];
+                cmd+=')'            
+
+
+            cmd += ';';
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
+        except Exception as e:
+            print(e);
+

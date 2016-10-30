@@ -1,10 +1,11 @@
 ﻿from os import system
 from .postgresql_orm_base import *
 from .postgresql_orm import postgresql_orm
+from .postgresql_orm import execute_query
 
 class postgresql_methods(postgresql_orm):
 
-    def make_triggerFunctionName(
+    def make_tablePartitionTriggerFunctionName(
         self,
         table_name_I
         ):
@@ -17,7 +18,7 @@ class postgresql_methods(postgresql_orm):
         '''
         function_name_O = '%s_partitionTrigFunc'%(table_name_I);
         return function_name_O;
-    def make_triggerName(
+    def make_tablePartitionTriggerName(
         self,
         table_name_I
         ):
@@ -28,63 +29,78 @@ class postgresql_methods(postgresql_orm):
         OUTPUT:
         trigger_name_O = string
         '''
-        trigger_name_O = '%s_partitionTrig'%(table_name_I);
+        trigger_name_O = '%s_partTrig'%(table_name_I);
         return trigger_name_O;
+    def make_tablePartitionSequenceName(
+        self,
+        table_name_I
+        ):
+        '''
+        Return the name for the partition sequencing
+        INPUT:
+        table_name_I = string
+        OUTPUT:
+        sequence_name_O = string
+        '''
+        sequence_name_O = '%s_partSeq'%(table_name_I);
+        return sequence_name_O;
+    def make_tablePartitionSequenceGeneratorFunctionName(
+        self,
+        table_name_I
+        ):
+        '''
+        Return the name for the partition sequencing generator function
+        INPUT:
+        table_name_I = string
+        OUTPUT:
+        function_name_O = string
+        '''
+        function_name_O = '%s_partSeqGenFunc'%(table_name_I);
+        return function_name_O;
 
-    def create_tablePartition(self,conn,
-        table_name_I='',
-        partition_id_I='',
-        constraint_column_I='analysis_id',
-        constraint_clause_I='',
-        constraint_comparator_I='=',
-        constraint_id_I='01',
+    def drop_tableMasterAndPartitions(self,conn,
+        table_I='',
+        schema_I='',
+        like_sourceTable_schema_I = '',
+        like_sourceTable_I = '',
+        like_options_I = '',
         verbose_I=True,
         ):
-        '''create a table partition
+        '''create a master table and child partitions
         
         '''
-        #example:
-        #CREATE TABLE child_table_name
-        #  (LIKE measurement INCLUDING DEFAULTS INCLUDING CONSTRAINTS);
-        table_name_partition = '"%s_%s"'%(table_name_I,partition_id_I)
-        self.create_table(conn,
-                    table_I=table_name_partition,
-                    schema_I='public',
-                    initialize_pkey_I = False,
-                    table_constraints_I = [],
-                    table_constraints_options_I = [],
-                    like_sourceTable_schema_I = 'public',
-                    like_sourceTable_I = table_name_I,
-                    like_options_I = 'INCLUDING ALL',            
-                    verbose_I = verbose_I,
-                    )
+        
+        '''CREATE OR REPLACE FUNCTION footgun(IN _schema TEXT, IN _parttionbase TEXT) 
+        RETURNS void 
+        LANGUAGE plpgsql
+        AS
+        $$
+        DECLARE
+            row     record;
+        BEGIN
+            FOR row IN 
+                SELECT
+                    table_schema,
+                    table_name
+                FROM
+                    information_schema.tables
+                WHERE
+                    table_type = 'BASE TABLE'
+                AND
+                    table_schema = _schema
+                AND
+                    table_name ILIKE (_parttionbase || '%')
+            LOOP
+                EXECUTE 'DROP TABLE ' || quote_ident(row.table_schema) || '.' || quote_ident(row.table_name);
+                RAISE INFO 'Dropped table: %', quote_ident(row.table_schema) || '.' || quote_ident(row.table_name);
+            END LOOP;
+        END;
+        $$;
 
-        #example:		
-        #ALTER TABLE child_table_name ADD CONSTRAINT y2008m02
-        #   CHECK ( logdate >= DATE '2008-02-01' AND logdate < DATE '2008-03-01' );   
-        partition_constraint = '"%s_%s_%s"'%(table_name_I,partition_id_I,constraint_id_I)
-        constraint_clause = '''"%s" %s '%s' '''%(constraint_column_I,
-                                constraint_comparator_I,constraint_clause_I)
-        self.alter_table_addConstraint(self,conn,
-                    constraint_name_I=partition_constraint,
-                    constraint_type_I='CHECK',
-                    constraint_columns_I=[],
-                    constraint_clause_I=constraint_clause,
-                    table_I=table_name_partition,
-                    schema_I='public',
-                    verbose_I = verbose_I,
-			        )	
+        SELECT footgun('public', 'tablename');
+        '''
+        pass;
 
-        #Example:
-        #ALTER TABLE child_table_name INHERIT measurement;
-        action_options = 'public."%s"'%(table_name_I);
-        self.alter_table_action(conn,
-                    action_I='INHERIT',
-                    action_options_I='action_options',
-                    tables_I=[table_name_partition],
-                    schema_I='public',
-                    verbose_I = verbose_I,
-			        )	
     def create_tablePartitionTriggerFunction(
         self,conn,
         user_I,
@@ -97,7 +113,6 @@ class postgresql_methods(postgresql_orm):
         column_name_I = 'analysis_id',
         constraint_column_I='analysis_id',
         constraint_comparator_I='=',
-        constraint_id_I='01',
         verbose_I=True,
         ):
         '''create a table partition trigger function
@@ -144,23 +159,26 @@ class postgresql_methods(postgresql_orm):
         function_body_begin+='IF _partitionid IS NULL THEN \n';
 
         #if the partition id does not exist, make one
+        sequence_generator_name = self.make_tablePartitionSequenceGeneratorFunctionName(partition_lookup_table_name_I);
+        function_body_selectPartitionID='''_partitionid := EXECUTE \n'SELECT "%s"."%s"()';  \n '''%(
+            partition_lookup_schema_I,sequence_generator_name);
+        function_body_begin+=function_body_selectPartitionID;
+
+        #convert the partition id to a string
+        add_partitionIDString = ''' _partitionidstr := to_char(_partitionid, '999999999999'); \n'''
+        function_body_begin+=add_partitionIDString;
+
+        #insert the new partition id into the partition table
         function_body_insertPartitionValue='''EXECUTE \n ' ''';
-        function_body_insertPartitionValue+='INSERT INTO "%s"."%s" (partition_column,partition_value,used_,comment_) \n'%(
+        function_body_insertPartitionValue+='INSERT INTO "%s"."%s" (partition_column,partition_value,partition_id,used_,comment_) \n'%(
             partition_lookup_schema_I,partition_lookup_table_name_I);
-        function_body_insertPartitionValue+="VALUES (quote_literal(%s),"%(
-            constraint_column_I);
-        function_body_insertPartitionValue+='NEW."%s",'%(constraint_column_I);
-        function_body_insertPartitionValue+="%s,%s)"%('true','null');
+        function_body_insertPartitionValue+='''VALUES (quote_literal(%s),NEW."%s",_partitionidstr,true,null '''%(
+            constraint_column_I,constraint_column_I);
         function_body_insertPartitionValue+="'; \n";
         function_body_begin+=function_body_insertPartitionValue;
 
-        #lookup the partition id
-        function_body_begin+=function_body_selectPartitionID;    
-
-        #create the partition constraints
-        ##TODO make function to calculate unique partition id based on schema,table,user,partition_column,partition_value
-        add_partitionIDString = ''' _partitionidstr := to_char(_partitionid, '999'); \n'''
-        function_body_begin+=add_partitionIDString;
+        ##lookup the partition id
+        #function_body_begin+=function_body_selectPartitionID;    
 
         #define the new tablename
         function_body_newTable=''' _tablename := quote_ident(%s)||'_'||_partitionidstr; \n '''%(
@@ -192,8 +210,8 @@ class postgresql_methods(postgresql_orm):
         function_body_begin+="'; \n";
         
         #create the partition constraints
-        add_partitionTableConstraints = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '||quote_ident(_tablename)||'_check%s CHECK  ("%s" %s NEW."%s");'''%(
-            partition_schema_I,constraint_id_I, constraint_column_I,constraint_comparator_I,constraint_column_I);
+        add_partitionTableConstraints = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '||quote_ident(_tablename)||'_partCheck CHECK  ("%s" %s NEW."%s");'''%(
+            partition_schema_I, constraint_column_I,constraint_comparator_I,constraint_column_I);
         #partition_constraint = ''' quote_ident(_tablename)||'_'||_partitionid||'_%s' '''%(table_name_I,'_partitionid',constraint_id_I)
         #constraint_clause = '''"%s" %s NEW."%s" '''%(constraint_column_I,
         #                        constraint_comparator_I,constraint_column_I)
@@ -210,7 +228,7 @@ class postgresql_methods(postgresql_orm):
         #            return_response_I=False,
         #            return_cmd_I=True,
         #            )
-        function_body_begin+=' \n';
+        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTableConstraints; 
         function_body_begin=function_body_begin[:-1];
@@ -232,7 +250,7 @@ class postgresql_methods(postgresql_orm):
         #    return_response_I=False,
         #    return_cmd_I=True,
         #    )
-        function_body_begin+=' \n';
+        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         #function_body_begin+=add_partitionTableInheritance[0];
         function_body_begin+=add_partitionTableInheritance;
@@ -253,7 +271,7 @@ class postgresql_methods(postgresql_orm):
         #    return_response_I=False,
         #    return_cmd_I=True,
         #    )
-        function_body_begin+=' \n';
+        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTableOwner; 
         #function_body_begin+=add_partitionTableOwner[0]; 
@@ -272,13 +290,16 @@ class postgresql_methods(postgresql_orm):
         #    return_response_I=False,
         #    return_cmd_I=True,
         #    )
-        function_body_begin+=' \n';
+        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTablePrivileges;  
         function_body_begin=function_body_begin[:-1];
         function_body_begin+="'; \n";
 
-        function_body_begin+='END IF; \n';
+        function_body_begin+='END IF; \n';        
+
+        #convert the partition id to a string
+        function_body_begin+=add_partitionIDString;
 
         #define the new tablename
         function_body_begin+=function_body_newTable;
@@ -291,7 +312,7 @@ class postgresql_methods(postgresql_orm):
         function_body_begin+='RETURN NULL; \nEND; \n'
 
         function = "$BODY$ \n"+function_body_declare+function_body_begin+"$BODY$ \n";
-        function_name = self.make_triggerFunctionName(table_name_I)
+        function_name = self.make_tablePartitionTriggerFunctionName(table_name_I)
         #function_script = '''CREATE OR REPLACE FUNCTION "%s"."%s" () \nRETURNS TRIGGER \n%s plpgsql;'''%(
         #    schema_I,function_name,function_body_begin);
         function_script = self.create_function(conn,
@@ -318,12 +339,10 @@ class postgresql_methods(postgresql_orm):
             #return_response_I=False,
             #return_cmd_I=True,
                     )	
-
     def create_tablePartitionTrigger(
         self,conn,
         schema_I='',
         table_name_I='',
-        table_name_partitions_I = [],
         verbose_I=True
         ):
         '''
@@ -332,63 +351,60 @@ class postgresql_methods(postgresql_orm):
         conn = connection or session
         schema_I = string
         table_name_I = string
-        table-name_partitions_I = list of strings
         '''
 
         #Example:
         #CREATE TRIGGER insert_measurement_trigger
         #    BEFORE INSERT ON measurement
         #    FOR EACH ROW EXECUTE PROCEDURE measurement_insert_trigger();	
-        trigger = self.make_triggerName(table_name_I)
-        self.create_trigger(self,conn,
-            schema_I=schema_I,
+        function_name = self.make_tablePartitionTriggerFunctionName(table_name_I)
+        trigger = self.make_tablePartitionTriggerName(table_name_I)
+        self.create_trigger(conn,
             trigger_I=trigger,
             constraint_I='',
             before_after_insteadOf_I='BEFORE',
-            event_I ='',
-            referenced_table_schema_I='public',
-            referenced_table_name_I=table_name_I,
+            event_I ='INSERT',
+            schema_I='public',
+            table_name_I = table_name_I,
+            referenced_table_schema_I='',
+            referenced_table_name_I='',
             deferrable_clause_I ='',
             for_clause_I ='FOR EACH ROW',
             when_conditions_I = [],
-            function_name_I = '',
+            function_name_I = function_name,
             function_arguments_I = '',
             verbose_I = verbose_I,
             )
-
     def drop_tablePartitionTriggerFunction(self,conn,
         schema_I='public',
         table_name_I='',
         verbose_I=True,
         ):
         
-        function_name = self.make_triggerFunctionName(table_name_I)	
+        function_name = self.make_tablePartitionTriggerFunctionName(table_name_I)	
         self.drop_function(conn,
             schema_I=schema_I,
-            function_I=function,
+            function_I=function_name,
             argmode_I='',
             argname_I='',
             argtype_I='',
             cascade_restrict_I='',
             verbose_I = verbose_I,
             )	
-
     def drop_tablePartitionTrigger(self,conn,
         schema_I='public',
         table_name_I='',
         verbose_I=True,
         ):
         		
-        trigger = self.make_triggerName(table_name_I)
+        trigger = self.make_tablePartitionTriggerName(table_name_I)
         self.drop_trigger(conn,
-            schema_I=schema_I,
             trigger_I=trigger,
             referenced_table_schema_I='public',
             referenced_table_name_I=table_name_I,
             cascade_restrict_I='',
             verbose_I = verbose_I,
             )
-
 
     def create_databaseShardSequenceGenerator(self,
         schema_I,
@@ -431,9 +447,12 @@ class postgresql_methods(postgresql_orm):
 
         #select shard_1.id_generator();
         pass;
-    def create_tablePartitionSequenceGenerator(self,
+    def create_tablePartitionSequenceGenerator(
+        self,
+        conn,
         schema_I,
-        function_name_I,
+        table_name_I,
+        verbose_I=True
         ):
         '''
         Create a table partitioning sequencing generating function
@@ -444,29 +463,72 @@ class postgresql_methods(postgresql_orm):
         BASED ON:
         partitioning based on tablename:
         
-        TODO...
+        TODO:
+        ensure unique partition_ids
+
         '''
 
-        #create sequence shard_1.global_id_sequence;
+        #create sequence
+        sequence_name = self.make_tablePartitionSequenceName(table_name_I);
+        self.create_sequence(conn,
+            schema_I=schema_I,
+            sequence_I=sequence_name,
+            verbose_I = verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,)
 
-        '''CREATE OR REPLACE FUNCTION "%s"."%s"(OUT result bigint) AS $$
+        #create the sequence generator function
+        function_name = self.make_tablePartitionSequenceGeneratorFunctionName(table_name_I);
+        sequence_generator = '''CREATE OR REPLACE FUNCTION "%s"."%s"(OUT result bigint) AS $$
         DECLARE
             our_epoch bigint := 1314220021721;
             seq_id bigint;
             now_millis bigint;
-            -- the id of this DB shard, must be set for each
-            -- schema shard you have - you could pass this as a parameter too
-            shard_id int := 1;
         BEGIN
-            SELECT nextval('shard_1.global_id_sequence') % 1024 INTO seq_id;
-
-            SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000) INTO now_millis;
-            result := (now_millis - our_epoch) << 23;
-            result := result | (shard_id << 10);
-            result := result | (seq_id);
+            SELECT nextval("%s"."%s") INTO seq_id;
+            result := seq_id;
         END;
         $$ LANGUAGE PLPGSQL;'''%(
-            schema_I,function_name_I)
+            schema_I,function_name,schema_I,sequence_name)
+        execute_query(conn,sequence_generator,
+            verbose_I = verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,);
 
-        #select shard_1.id_generator();
-        pass;
+    def drop_tablePartitionSequenceGenerator(
+        self,
+        conn,
+        schema_I,
+        table_name_I,
+        verbose_I=True
+        ):
+        '''
+        drop a table partitioning sequencing generating function
+        INPUT:
+        schema_I
+        function_name_I
+
+        '''
+
+        #drop sequence
+        sequence_name = self.make_tablePartitionSequenceName(table_name_I);
+        self.drop_sequence(conn,
+            schema_I=schema_I,
+            sequence_I=sequence_name,
+            verbose_I = verbose_I,
+            );
+        #drop the function
+        function_name = self.make_tablePartitionSequenceGeneratorFunctionName(table_name_I);	
+        self.drop_function(conn,
+            schema_I=schema_I,
+            function_I=function_name,
+            argmode_I='',
+            argname_I='',
+            argtype_I='',
+            cascade_restrict_I='',
+            verbose_I = verbose_I,
+            );
