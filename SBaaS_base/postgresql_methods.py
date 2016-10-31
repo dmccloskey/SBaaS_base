@@ -31,6 +31,20 @@ class postgresql_methods(postgresql_orm):
         '''
         trigger_name_O = '%s_partTrig'%(table_name_I);
         return trigger_name_O;
+    def make_tablePartitionName(
+        self,
+        table_name_I,
+        partition_id_I,
+        ):
+        '''
+        Return the name for the partition table
+        INPUT:
+        table_name_I = string
+        OUTPUT:
+        table_name_O = string
+        '''
+        table_name_O = '%s_%s'%(table_name_I,partition_id_I);
+        return table_name_O;
     def make_tablePartitionSequenceName(
         self,
         table_name_I
@@ -71,6 +85,19 @@ class postgresql_methods(postgresql_orm):
         '''
         sequence_name_O = '%s_%s_seq'%(table_name_I,column_name_I);
         return sequence_name_O;
+    def make_tablePartitionConstraintName(
+        self,
+        table_name_I
+        ):
+        '''
+        Return the name for the partition trigger
+        INPUT:
+        table_name_I = string
+        OUTPUT:
+        constraint_name_O = string
+        '''
+        constraint_name_O = '%s_partCheck'%(table_name_I);
+        return constraint_name_O;
 
     def drop_tableMasterAndPartitions(self,conn,
         table_I='',
@@ -157,9 +184,14 @@ class postgresql_methods(postgresql_orm):
         '''
 
         #declare variables
-        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n_partitionidstr text; \n_partitioncolstr text;  \n_partitionlookupid  int;  \n_partitionlookupstr text;  \n_result record; \n';
+        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n';
+        function_body_declare += '_partitionidstr text; _partitioncolstr text;  \n';
+        function_body_declare += '_partitionlookupid  int;  \n_partitionlookupstr text;  \n';
+        function_body_declare += '_partitiontblid  int;  \n_partitiontblstr text;  \n';
+        function_body_declare += '_result record; \n_partitiontblcheck text; \n';
         function_body_begin = 'BEGIN \n';
         
+        ##PART 1: check for the partition ID
         #convert the partition id to a string
         add_partitionColString = '''_partitioncolstr := '%s'; \n'''%(column_name_I)
         function_body_begin+=add_partitionColString;
@@ -181,15 +213,15 @@ class postgresql_methods(postgresql_orm):
         function_body_begin+=function_body_selectPartitionID;
 
         #convert the partition id to a string
-        add_partitionIDString = ''' _partitionidstr := trim(both ' ' from to_char(_partitionid, '999999999999')); \n'''
+        add_partitionIDString = ''' _partitionidstr := trim(both ' ' from to_char(_partitionid, '9999999999999999999')); \n'''
         function_body_begin+=add_partitionIDString;
 
-        ####
+        #make a new insertion id
         lookup_sequence_name = self.make_tableColumnSequenceName('id',partition_lookup_table_name_I);
         function_body_selectPartitionLookupID='''SELECT nextval('"%s"."%s"') INTO _partitionlookupid;  \n '''%(
             partition_lookup_schema_I,lookup_sequence_name);
         function_body_begin+=function_body_selectPartitionLookupID;
-        add_partitionLookupIDString = ''' _partitionlookupstr := trim(both ' ' from to_char(_partitionlookupid, '999999999999')); \n'''
+        add_partitionLookupIDString = ''' _partitionlookupstr := trim(both ' ' from to_char(_partitionlookupid, '9999999999999999999')); \n'''
         function_body_begin+=add_partitionLookupIDString;
 
         #insert the new partition id into the partition table  VALUES ($1.*)' USING NEW;
@@ -201,40 +233,63 @@ class postgresql_methods(postgresql_orm):
             constraint_column_I);
         function_body_begin+=function_body_insertPartitionValue;
 
-        ##lookup the partition id
-        #function_body_begin+=function_body_selectPartitionID;    
+        function_body_begin+='END IF; \n';   
+
+        ##PART 2: check for the partition table
+        #convert the partition id to a string
+        function_body_begin+=add_partitionIDString;
 
         #define the new tablename
         function_body_newTable=''' _tablename := '%s_'||_partitionidstr; \n '''%(
             table_name_I);
         function_body_begin+=function_body_newTable;   
 
+        #Check if the partition needed for the current record exists
+        perform_partitionTable = '''SELECT information_schema.tables.table_name \
+    FROM information_schema.tables \
+    WHERE information_schema.tables.table_name = _tablename \
+    AND information_schema.tables.table_schema = '%s' INTO _partitiontblcheck; \n'''%(
+            schema_I);
+        function_body_begin+=perform_partitionTable; 
+        function_body_begin+='IF _partitiontblcheck IS NULL THEN \n';
+
         #make a new partition table (if it does not exist)
         create_partitionTable = '''CREATE TABLE IF NOT EXISTS "%s".'||quote_ident(_tablename)||' (LIKE "%s"."%s" INCLUDING ALL) WITH (OIDS=FALSE) ''' %(
             partition_schema_I,schema_I,table_name_I)
-        #create_partitionTable = self.create_table(conn,
-        #            table_I='_tablename',
-        #            #table_I=table_name_partition,
-        #            schema_I=partition_schema_I,
-        #            initialize_pkey_I = False,
-        #            table_constraints_I = [],
-        #            table_constraints_options_I = [],
-        #            like_sourceTable_schema_I = schema_I,
-        #            like_sourceTable_I = table_name_I,
-        #            like_options_I = 'INCLUDING ALL',            
-        #            verbose_I = verbose_I,
-        #            execute_I = False,
-        #            commit_I=False,
-        #            return_response_I=False,
-        #            return_cmd_I=True,
-        #            )
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=create_partitionTable; 
         function_body_begin=function_body_begin[:-1];
         function_body_begin+="'; \n";
+
+        #NOTE: partition table will inherit the sequence...
+        #make the "id" integer column into a serial column: set default
+        table_sequence_name = self.make_tableColumnSequenceName('id',table_name_I);
+        alter_partitionTableID = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)|| ' ALTER COLUMN "id" SET DEFAULT nextval(' || quote_literal('"%s"."%s"') || ') '''%(
+            partition_schema_I,partition_schema_I,table_sequence_name)
+        function_body_begin+="EXECUTE \n '";
+        function_body_begin+=alter_partitionTableID; 
+        function_body_begin=function_body_begin[:-1];
+        function_body_begin+="'; \n";
+
+        #make the "id" integer column into a serial column: alter ownership of the sequence
+        table_sequence_name = self.make_tableColumnSequenceName('id',table_name_I);
+        alter_partitionTableIDSequence = '''ALTER SEQUENCE IF EXISTS "%s"."%s" OWNED BY "%s".'||quote_ident(_tablename)|| '."id" '''%(
+            partition_schema_I,table_sequence_name,partition_schema_I)
+        function_body_begin+="EXECUTE \n '";
+        function_body_begin+=alter_partitionTableIDSequence; 
+        function_body_begin=function_body_begin[:-1];
+        function_body_begin+="'; \n";
+
+        #create the partition constraints: check if it already exists
+        drop_partitionTableConstraints = '''EXECUTE \n 'ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' DROP CONSTRAINT IF EXISTS '|| quote_ident(_tablename||'_partCheck'); \n '''%(
+            partition_schema_I);
+        function_body_begin+=drop_partitionTableConstraints; 
+        function_body_begin=function_body_begin[:-1];
         
         #create the partition constraints
-        add_partitionTableConstraints = '''EXECUTE \n 'ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '|| quote_ident(_tablename||'_partCheck') ||' CHECK  ("%s" %s $1."%s")' USING NEW; \n '''%(
+        #NOTE using can only be used for SELECT, DELETE, INSERT, or UPDATE
+        #   https://www.postgresql.org/docs/current/static/plpgsql-statements.html#PLPGSQL-STATEMENTS-EXECUTING-DYN
+        add_partitionTableConstraints = '''EXECUTE \n 'ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '|| quote_ident(_tablename||'_partCheck') ||' CHECK  ("%s" %s ' || quote_literal(NEW."%s") ||')'; \n '''%(
             partition_schema_I, constraint_column_I,constraint_comparator_I,constraint_column_I);
         function_body_begin+=add_partitionTableConstraints; 
         function_body_begin=function_body_begin[:-1];
@@ -244,20 +299,7 @@ class postgresql_methods(postgresql_orm):
             schema_I,table_name_I); 
         add_partitionTableInheritance = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' INHERIT %s;'''%(
             partition_schema_I,action_options)
-        #add_partitionTableInheritance = self.alter_table_action(conn,
-        #    action_I='INHERIT',
-        #    action_options_I=action_options,
-        #    tables_I=['_tablename'],
-        #    schema_I=partition_schema_I,
-        #    verbose_I = verbose_I,
-        #    execute_I = False,
-        #    commit_I=False,
-        #    return_response_I=False,
-        #    return_cmd_I=True,
-        #    )
-        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
-        #function_body_begin+=add_partitionTableInheritance[0];
         function_body_begin+=add_partitionTableInheritance;
         function_body_begin=function_body_begin[:-1];
         function_body_begin+="'; \n";
@@ -265,37 +307,12 @@ class postgresql_methods(postgresql_orm):
         #assign privileges (if they do not exist) 
         add_partitionTableOwner = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' OWNER TO "%s" '''%(
             partition_schema_I,user_I)
-        #add_partitionTableOwner = self.alter_table_action(conn,
-        #    action_I='OWNER TO',
-        #    action_options_I=user_I,
-        #    tables_I=['_tablename'],
-        #    schema_I=schema_I,
-        #    verbose_I = verbose_I,
-        #    execute_I = False,
-        #    commit_I=False,
-        #    return_response_I=False,
-        #    return_cmd_I=True,
-        #    )
-        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTableOwner; 
-        #function_body_begin+=add_partitionTableOwner[0]; 
         function_body_begin=function_body_begin[:-1];
         function_body_begin+="'; \n";
         add_partitionTablePrivileges = '''GRANT ALL ON "%s".'||quote_ident(_tablename)||' TO "%s" '''%(
             partition_schema_I,user_I)
-        #add_partitionTablePrivileges = self.grant_privileges(
-        #    conn,user_I=user_I,
-        #    privileges_I=['ALL'],
-        #    tables_I=['_tablename'],
-        #    schema_I=partition_schema_I,
-        #    verbose_I = verbose_I,
-        #    execute_I = False,
-        #    commit_I=False,
-        #    return_response_I=False,
-        #    return_cmd_I=True,
-        #    )
-        #function_body_begin+=' \n';
         function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTablePrivileges;  
         function_body_begin=function_body_begin[:-1];
@@ -303,14 +320,19 @@ class postgresql_methods(postgresql_orm):
 
         function_body_begin+='END IF; \n';        
 
-        #convert the partition id to a string
-        function_body_begin+=add_partitionIDString;
+        ##PART 3:  INSERT the new rows
 
-        #define the new tablename
-        function_body_begin+=function_body_newTable;
+        ##make a new insertion id
+        #table_sequence_name = self.make_tableColumnSequenceName('id',table_name_I);
+        #function_body_selectPartitionTableID='''SELECT nextval('"%s"."%s"') INTO _partitiontblid;  \n '''%(
+        #    schema_I,table_sequence_name);
+        #function_body_begin+=function_body_selectPartitionTableID;
+        #add_partitionTableIDString = ''' _partitiontblstr := trim(both ' ' from to_char(_partitiontblid, '999999999999')); \n'''
+        #function_body_begin+=add_partitionTableIDString;
 
         #insert data into the partition table  		
         function_body_insert = '''EXECUTE 'INSERT INTO "%s".'|| quote_ident(_tablename) || ' VALUES ($1.*)' USING NEW; \n'''%(
+        #function_body_insert = '''EXECUTE 'INSERT INTO "%s".'|| quote_ident(_tablename) || ' VALUES (' || _partitiontblstr || ',$1.*)' USING NEW; \n'''%(
             partition_schema_I);
         function_body_begin+=function_body_insert; 
 
@@ -410,6 +432,39 @@ class postgresql_methods(postgresql_orm):
             cascade_restrict_I='',
             verbose_I = verbose_I,
             )
+    def drop_tablePartitions(self,conn,
+        schema_I='',
+        table_name_I='',
+        partition_ids_I=[],
+        verbose_I=True,
+        ):
+        '''Drop a list of partition tables by master table name and partition ids
+        BEHAVIOR:
+        1. the partition table is dropped
+        2. the partition table check constraint is dropped
+        INPUT:
+        conn,
+        schema_I='',
+        table_name_I='',
+        partition_ids_I=[],
+        '''
+
+        for partition_id in partition_ids_I:
+            table_name = self.make_tablePartitionName(table_name_I,partition_id)
+            self.drop_table(conn,
+                table_I=table_name,
+                schema_I=schema_I,
+                cascade_restrict_I='',
+                verbose_I = verbose_I,
+                );
+            constraint_name = self.make_tablePartitionConstraintName(table_name);
+            self.alter_table_drop(conn,
+                attribute_I='CONSTRAINT',
+                attribute_name_I=constraint_name,
+                tables_I=table_name,
+                schema_I=schema_I,
+                verbose_I = verbose_I,
+                );
 
     def create_databaseShardSequenceGenerator(self,
         schema_I,
@@ -536,3 +591,45 @@ class postgresql_methods(postgresql_orm):
             cascade_restrict_I='',
             verbose_I = verbose_I,
             );
+
+    def convert_intColumn2SerialColumn(
+        self,conn,
+        schema_I='public',
+        table_name_I='',
+        column_name_I='',
+        verbose_I=True,
+        ):
+        '''
+        convert integer column to a serial column
+        ASSUMPTIONS:
+        table has been created
+        sequence has been created
+        INPUT:
+        
+        '''       
+
+        #make the "id" integer column into a serial column: set default
+        table_sequence_name = self.make_tableColumnSequenceName(column_name_I,table_name_I);
+        alter_partitionTableID = '''ALTER TABLE IF EXISTS "%s"."%s" ALTER COLUMN "%s" SET DEFAULT nextval('"%s"."%s"'); '''%(
+            schema_I,table_name_I,column_name_I,schema_I,table_sequence_name)
+        data = execute_query(conn,
+            alter_partitionTableID,
+            verbose_I=verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
+            )
+
+        #make the "id" integer column into a serial column: alter ownership of the sequence
+        table_sequence_name = self.make_tableColumnSequenceName(column_name_I,table_name_I);
+        alter_partitionTableIDSequence = '''ALTER SEQUENCE IF EXISTS "%s"."%s" OWNED BY "%s"."%s"."%s"; '''%(
+            schema_I,table_sequence_name,schema_I,table_name_I,column_name_I)  
+        data = execute_query(conn,
+            alter_partitionTableIDSequence,
+            verbose_I=verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,
+            )
