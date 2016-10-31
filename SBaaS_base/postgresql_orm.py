@@ -1145,7 +1145,7 @@ class postgresql_orm():
         program_cmd_I='',
         stdin_or_stdout_I='',
         with_I=['FORMAT'],
-        with_options_delimiter_I=['binary'],
+        with_options_I=['binary'],
         verbose_I = True,
         execute_I = True,
         commit_I=True,
@@ -1162,18 +1162,20 @@ class postgresql_orm():
 
         '''
         try:
-            cmd = '''COPY "%s"."%s" ''' %(
-                schema_I,table_name_I);
-
+            cmd='COPY ';
             if column_names_I:
+                cmd += '''"%s"."%s" ''' %(
+                    schema_I,table_name_I);
                 cmd+='(';
                 for c in column_names_I:
                     cmd+='"%s",'%(c);
                 cmd=cmd[:-1];
                 cmd+=') '
-
-            if query_I:
-                cmd+='(%s) '%(query_I)
+            elif query_I:
+                cmd='COPY (%s) '%(query_I)
+            else:
+                cmd += '''"%s"."%s" ''' %(
+                    schema_I,table_name_I);
 
             cmd += '\n %s '%(to_or_from_I);
             if filename_I:
@@ -1185,11 +1187,11 @@ class postgresql_orm():
 
             if with_I:
                 cmd+='\n WITH (';
-                for i,c in with_I:
+                for i,c in enumerate(with_I):
                     if c in ['DELIMITER','NULL','QUOTE','ESCAPE','ENCODING']:
-                        cmd+="%s '%s', "%(c,with_options_delimiter_I[i]);
+                        cmd+="%s '%s',"%(c,with_options_I[i]);
                     else:
-                        cmd+="%s %s, "%(c,with_options_delimiter_I[i]);
+                        cmd+="%s %s,"%(c,with_options_I[i]);
                 cmd=cmd[:-1];
                 cmd+=')'            
 

@@ -57,6 +57,20 @@ class postgresql_methods(postgresql_orm):
         '''
         function_name_O = '%s_partSeqGenFunc'%(table_name_I);
         return function_name_O;
+    def make_tableColumnSequenceName(
+        self,
+        column_name_I,
+        table_name_I
+        ):
+        '''
+        Return the name for the partition sequencing generator function
+        INPUT:
+        table_name_I = string
+        OUTPUT:
+        sequence_name_O = string
+        '''
+        sequence_name_O = '%s_%s_seq'%(table_name_I,column_name_I);
+        return sequence_name_O;
 
     def drop_tableMasterAndPartitions(self,conn,
         table_I='',
@@ -143,50 +157,60 @@ class postgresql_methods(postgresql_orm):
         '''
 
         #declare variables
-        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n_partitionidstr text;  \n_result record; \n';
+        function_body_declare = 'DECLARE \n_tablename text; \n_partitionid int;  \n_partitionidstr text; \n_partitioncolstr text;  \n_partitionlookupid  int;  \n_partitionlookupstr text;  \n_result record; \n';
         function_body_begin = 'BEGIN \n';
+        
+        #convert the partition id to a string
+        add_partitionColString = '''_partitioncolstr := '%s'; \n'''%(column_name_I)
+        function_body_begin+=add_partitionColString;
 
         #lookup the partition id
-        function_body_selectPartitionID='_partitionid := EXECUTE \n';
-        function_body_selectPartitionID+="'";
-        function_body_selectPartitionID+='SELECT partition_id FROM "%s"."%s" WHERE "%s"."%s"."%s" = NEW."%s"'%(
+        function_body_selectPartitionID='''SELECT partition_id FROM "%s"."%s" WHERE "%s"."%s"."partition_column" = '%s' AND "%s"."%s"."partition_value" = NEW."%s" INTO _partitionid; \n '''%(
             partition_lookup_schema_I,partition_lookup_table_name_I,
+            partition_lookup_schema_I,partition_lookup_table_name_I,column_name_I,
             partition_lookup_schema_I,partition_lookup_table_name_I,
-            constraint_column_I,column_name_I);
-        function_body_selectPartitionID+="'; \n";
+            constraint_column_I);
         function_body_begin+=function_body_selectPartitionID;
         
         function_body_begin+='IF _partitionid IS NULL THEN \n';
 
         #if the partition id does not exist, make one
         sequence_generator_name = self.make_tablePartitionSequenceGeneratorFunctionName(partition_lookup_table_name_I);
-        function_body_selectPartitionID='''_partitionid := EXECUTE \n'SELECT "%s"."%s"()';  \n '''%(
+        function_body_selectPartitionID='''SELECT "%s"."%s"() INTO _partitionid;  \n '''%(
             partition_lookup_schema_I,sequence_generator_name);
         function_body_begin+=function_body_selectPartitionID;
 
         #convert the partition id to a string
-        add_partitionIDString = ''' _partitionidstr := to_char(_partitionid, '999999999999'); \n'''
+        add_partitionIDString = ''' _partitionidstr := trim(both ' ' from to_char(_partitionid, '999999999999')); \n'''
         function_body_begin+=add_partitionIDString;
 
-        #insert the new partition id into the partition table
-        function_body_insertPartitionValue='''EXECUTE \n ' ''';
-        function_body_insertPartitionValue+='INSERT INTO "%s"."%s" (partition_column,partition_value,partition_id,used_,comment_) \n'%(
+        ####
+        lookup_sequence_name = self.make_tableColumnSequenceName('id',partition_lookup_table_name_I);
+        function_body_selectPartitionLookupID='''SELECT nextval('"%s"."%s"') INTO _partitionlookupid;  \n '''%(
+            partition_lookup_schema_I,lookup_sequence_name);
+        function_body_begin+=function_body_selectPartitionLookupID;
+        add_partitionLookupIDString = ''' _partitionlookupstr := trim(both ' ' from to_char(_partitionlookupid, '999999999999')); \n'''
+        function_body_begin+=add_partitionLookupIDString;
+
+        #insert the new partition id into the partition table  VALUES ($1.*)' USING NEW;
+        function_body_insertPartitionValue='''EXECUTE \n 'INSERT INTO "%s"."%s" (id,partition_column,partition_value,partition_id,used_,comment_) \n '''%(
             partition_lookup_schema_I,partition_lookup_table_name_I);
-        function_body_insertPartitionValue+='''VALUES (quote_literal(%s),NEW."%s",_partitionidstr,true,null '''%(
-            constraint_column_I,constraint_column_I);
-        function_body_insertPartitionValue+="'; \n";
+        #function_body_insertPartitionValue+='''VALUES (' ||quote_literal(%s) || ',NEW."%s",_partitionidstr,true,null)'; \n '''%(
+        #    column_name_I,constraint_column_I);
+        function_body_insertPartitionValue+='''VALUES (' || _partitionlookupstr || ',' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
+            constraint_column_I);
         function_body_begin+=function_body_insertPartitionValue;
 
         ##lookup the partition id
         #function_body_begin+=function_body_selectPartitionID;    
 
         #define the new tablename
-        function_body_newTable=''' _tablename := quote_ident(%s)||'_'||_partitionidstr; \n '''%(
+        function_body_newTable=''' _tablename := '%s_'||_partitionidstr; \n '''%(
             table_name_I);
         function_body_begin+=function_body_newTable;   
 
         #make a new partition table (if it does not exist)
-        create_partitionTable = '''CREATE TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' (LIKE "%s"."%s" INCLUDING ALL) WITH (OIDS=FALSE) ''' %(
+        create_partitionTable = '''CREATE TABLE IF NOT EXISTS "%s".'||quote_ident(_tablename)||' (LIKE "%s"."%s" INCLUDING ALL) WITH (OIDS=FALSE) ''' %(
             partition_schema_I,schema_I,table_name_I)
         #create_partitionTable = self.create_table(conn,
         #            table_I='_tablename',
@@ -210,29 +234,10 @@ class postgresql_methods(postgresql_orm):
         function_body_begin+="'; \n";
         
         #create the partition constraints
-        add_partitionTableConstraints = '''ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '||quote_ident(_tablename)||'_partCheck CHECK  ("%s" %s NEW."%s");'''%(
+        add_partitionTableConstraints = '''EXECUTE \n 'ALTER TABLE IF EXISTS "%s".'||quote_ident(_tablename)||' ADD CONSTRAINT '|| quote_ident(_tablename||'_partCheck') ||' CHECK  ("%s" %s $1."%s")' USING NEW; \n '''%(
             partition_schema_I, constraint_column_I,constraint_comparator_I,constraint_column_I);
-        #partition_constraint = ''' quote_ident(_tablename)||'_'||_partitionid||'_%s' '''%(table_name_I,'_partitionid',constraint_id_I)
-        #constraint_clause = '''"%s" %s NEW."%s" '''%(constraint_column_I,
-        #                        constraint_comparator_I,constraint_column_I)
-        #add_partitionTableConstraints = self.alter_table_addConstraint(conn,
-        #            constraint_name_I=partition_constraint,
-        #            constraint_type_I='CHECK',
-        #            constraint_columns_I=[],
-        #            constraint_clause_I=constraint_clause,
-        #            table_I='_tablename',
-        #            schema_I=partition_schema_I,          
-        #            verbose_I = verbose_I,
-        #            execute_I = False,
-        #            commit_I=False,
-        #            return_response_I=False,
-        #            return_cmd_I=True,
-        #            )
-        #function_body_begin+=' \n';
-        function_body_begin+="EXECUTE \n '";
         function_body_begin+=add_partitionTableConstraints; 
         function_body_begin=function_body_begin[:-1];
-        function_body_begin+="'; \n";
 
         #assign inheritance        
         action_options = '"%s"."%s"'%(
@@ -485,9 +490,8 @@ class postgresql_methods(postgresql_orm):
         DECLARE
             our_epoch bigint := 1314220021721;
             seq_id bigint;
-            now_millis bigint;
         BEGIN
-            SELECT nextval("%s"."%s") INTO seq_id;
+            SELECT nextval('"%s"."%s"') INTO seq_id;
             result := seq_id;
         END;
         $$ LANGUAGE PLPGSQL;'''%(
