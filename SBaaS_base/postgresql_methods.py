@@ -633,3 +633,15 @@ class postgresql_methods(postgresql_orm):
             return_response_I=False,
             return_cmd_I=False,
             )
+    def set_(
+        self,
+        conn,):
+        '''Set constraint_exclusion on'''
+        cmd = 'SET constraint_exclusion = on;';        
+        pg_methods = postgresql_methods();
+        pg_methods.execute_query(conn,cmd,
+            verbose_I = verbose_I,
+            execute_I = True,
+            commit_I=True,
+            return_response_I=False,
+            return_cmd_I=False,);
