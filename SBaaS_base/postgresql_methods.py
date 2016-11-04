@@ -216,20 +216,19 @@ class postgresql_methods(postgresql_orm):
         add_partitionIDString = ''' _partitionidstr := trim(both ' ' from to_char(_partitionid, '9999999999999999999')); \n'''
         function_body_begin+=add_partitionIDString;
 
-        #make a new insertion id
-        lookup_sequence_name = self.make_tableColumnSequenceName('id',partition_lookup_table_name_I);
-        function_body_selectPartitionLookupID='''SELECT nextval('"%s"."%s"') INTO _partitionlookupid;  \n '''%(
-            partition_lookup_schema_I,lookup_sequence_name);
-        function_body_begin+=function_body_selectPartitionLookupID;
-        add_partitionLookupIDString = ''' _partitionlookupstr := trim(both ' ' from to_char(_partitionlookupid, '9999999999999999999')); \n'''
-        function_body_begin+=add_partitionLookupIDString;
+        ##make a new insertion id
+        #lookup_sequence_name = self.make_tableColumnSequenceName('id',partition_lookup_table_name_I);
+        #function_body_selectPartitionLookupID='''SELECT nextval('"%s"."%s"') INTO _partitionlookupid;  \n '''%(
+        #    partition_lookup_schema_I,lookup_sequence_name);
+        #function_body_begin+=function_body_selectPartitionLookupID;
+        #add_partitionLookupIDString = ''' _partitionlookupstr := trim(both ' ' from to_char(_partitionlookupid, '9999999999999999999')); \n'''
+        #function_body_begin+=add_partitionLookupIDString;
 
         #insert the new partition id into the partition table  VALUES ($1.*)' USING NEW;
         function_body_insertPartitionValue='''EXECUTE \n 'INSERT INTO "%s"."%s" (id,partition_column,partition_value,partition_id,used_,comment_) \n '''%(
             partition_lookup_schema_I,partition_lookup_table_name_I);
-        #function_body_insertPartitionValue+='''VALUES (' ||quote_literal(%s) || ',NEW."%s",_partitionidstr,true,null)'; \n '''%(
-        #    column_name_I,constraint_column_I);
-        function_body_insertPartitionValue+='''VALUES (' || _partitionlookupstr || ',' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
+        #function_body_insertPartitionValue+='''VALUES (' || _partitionlookupstr || ',' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
+        function_body_insertPartitionValue+='''VALUES (null,' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
             constraint_column_I);
         function_body_begin+=function_body_insertPartitionValue;
 
@@ -633,7 +632,7 @@ class postgresql_methods(postgresql_orm):
             return_response_I=False,
             return_cmd_I=False,
             )
-    def set_(
+    def set_constraintExclusion(
         self,
         conn,):
         '''Set constraint_exclusion on'''
