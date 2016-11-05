@@ -189,6 +189,7 @@ class postgresql_methods(postgresql_orm):
         function_body_declare += '_partitionlookupid  int;  \n_partitionlookupstr text;  \n';
         function_body_declare += '_partitiontblid  int;  \n_partitiontblstr text;  \n';
         function_body_declare += '_result record; \n_partitiontblcheck text; \n';
+        function_body_declare += '_partitionidlastval int; \n_partitionlookupidlastval int; \n';
         function_body_begin = 'BEGIN \n';
         
         ##PART 1: check for the partition ID
@@ -225,10 +226,11 @@ class postgresql_methods(postgresql_orm):
         #function_body_begin+=add_partitionLookupIDString;
 
         #insert the new partition id into the partition table  VALUES ($1.*)' USING NEW;
-        function_body_insertPartitionValue='''EXECUTE \n 'INSERT INTO "%s"."%s" (id,partition_column,partition_value,partition_id,used_,comment_) \n '''%(
+        #function_body_insertPartitionValue='''EXECUTE \n 'INSERT INTO "%s"."%s" (id,partition_column,partition_value,partition_id,used_,comment_) \n '''%(
+        function_body_insertPartitionValue='''EXECUTE \n 'INSERT INTO "%s"."%s" (partition_column,partition_value,partition_id,used_,comment_) \n '''%(
             partition_lookup_schema_I,partition_lookup_table_name_I);
         #function_body_insertPartitionValue+='''VALUES (' || _partitionlookupstr || ',' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
-        function_body_insertPartitionValue+='''VALUES (null,' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
+        function_body_insertPartitionValue+='''VALUES (' ||quote_literal(_partitioncolstr) || ',$1."%s",' || _partitionidstr || ',true,null)' USING NEW; \n '''%(
             constraint_column_I);
         function_body_begin+=function_body_insertPartitionValue;
 
@@ -334,8 +336,25 @@ class postgresql_methods(postgresql_orm):
         #function_body_insert = '''EXECUTE 'INSERT INTO "%s".'|| quote_ident(_tablename) || ' VALUES (' || _partitiontblstr || ',$1.*)' USING NEW; \n'''%(
             partition_schema_I);
         function_body_begin+=function_body_insert; 
+        function_body_begin+='RETURN NULL; \n'
 
-        function_body_begin+='RETURN NULL; \nEND; \n'
+        ###PART 4:  catch any exceptions (TODO: not implemented or tested)
+        ##catch any exceptions
+        #function_body_exception = '''EXCEPTION WHEN OTHERS THEN \n ''';
+        #function_body_begin+=function_body_exception;
+
+        ##revert sequences if an exception occurs
+        #function_body_partitionIDLastVal = '''_partitionidlastval := _partitionid - 1;  \n ''';    
+        #lookup_sequence_name = self.make_tableColumnSequenceName('id',partition_lookup_table_name_I);
+        #function_body_setPartitionIDLastVal='''SELECT setval('"%s"."%s"',_partitionidlastval);  \n '''%(
+        #    partition_lookup_schema_I,lookup_sequence_name);
+        #function_body_partitionLookupIDLastVal = '''_partitionlookupidlastval := _partitionlookupid - 1;  \n ''';
+        #function_body_setPartitionLookupIDLastVal='''SELECT setval('"%s"."%s"',_partitionlookupidlastval);  \n '''%(
+        #    partition_lookup_schema_I,lookup_sequence_name);
+        #function_body_begin+=function_body_exception;
+        #function_body_begin+='RETURN NULL; \n'
+
+        function_body_begin+='END; \n'
 
         function = "$BODY$ \n"+function_body_declare+function_body_begin+"$BODY$ \n";
         function_name = self.make_tablePartitionTriggerFunctionName(table_name_I)
