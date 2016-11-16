@@ -32,6 +32,52 @@ def execute_query(conn,
     commit_I = boolean, if True, executed cmd is committed,
     return_response_I = boolean, if True, response from the executed cmd is returned,
     return_cmd_I = boolean, if True, the cmd is returned
+
+    EXAMPLES:
+    print statement, but do not execute anything
+    execute_query(
+        session,cmd,
+        verbose_I=True,
+        execute_I=False,
+        commit_I=False,
+        return_response_I=False,
+        return_cmd_I=False)
+
+    execute and commit a transaction
+    execute_query(
+        session,cmd,
+        verbose_I=False,
+        execute_I=True,
+        commit_I=True,
+        return_response_I=False,
+        return_cmd_I=False)
+
+    execute, but do not commit a transaction
+    execute_query(
+        session,cmd,
+        verbose_I=False,
+        execute_I=True,
+        commit_I=False,
+        return_response_I=False,
+        return_cmd_I=False)
+
+    execute and return a response
+    execute_query(
+        session,cmd,
+        verbose_I=False,
+        execute_I=True,
+        commit_I=False,
+        return_response_I=True,
+        return_cmd_I=False)
+
+    return the original command
+    execute_query(
+        session,cmd,
+        verbose_I=False,
+        execute_I=False,
+        commit_I=False,
+        return_response_I=False,
+        return_cmd_I=True)
     '''
 
     if verbose_I: print(cmd);
@@ -54,6 +100,7 @@ class postgresql_orm():
         '''make the database engine
         INPUT:
         settings_I = string dict, {settings name:settings value}
+        isolation_level
         '''
         engine = create_engine("postgresql://%s:%s@%s/%s" %
             (settings_I['user'], settings_I['password'], settings_I['host'], settings_I['database']))
@@ -100,6 +147,17 @@ class postgresql_orm():
         try:
             engine = self.make_engine(database_I=database_I,user_I=user_I,password_I=password_I,host_I=host_I);
             conn = engine.connect();
+            conn.execute("commit");
+            return conn;
+        except SQLAlchemyError as e:
+            print(e);
+            exit(-1);
+
+    def get_connection(self):
+        '''return connection to the database
+        '''
+        try:
+            conn = self.engine.connect();
             conn.execute("commit");
             return conn;
         except SQLAlchemyError as e:
@@ -297,10 +355,16 @@ class postgresql_orm():
         engine = self.make_engineFromSettings(settings_I);
         self.Session = sessionmaker(bind=engine, class_=_Session);
 
-    def set_session(self,database_I='sbaas01',user_I='guest',password_I='guest',host_I="localhost:5432"):
-        '''set a session object '''
-        engine = self.make_engine(database_I=database_I,user_I=user_I,password_I=password_I,host_I=host_I);
-        self.Session = sessionmaker(bind=engine, class_=_Session);
+    def set_session(self,engine_I=None,database_I='sbaas01',user_I='guest',password_I='guest',host_I="localhost:5432"):
+        '''set a session object
+        INPUT:
+        engine_I = sqlalchemy engine object
+        '''
+        if engine_I:
+            self.Session = sessionmaker(bind=engine, class_=_Session);
+        else:
+            engine = self.make_engine(database_I=database_I,user_I=user_I,password_I=password_I,host_I=host_I);
+            self.Session = sessionmaker(bind=engine, class_=_Session);        
 
     def get_session(self):
         '''return new session object'''
@@ -1195,6 +1259,124 @@ class postgresql_orm():
                 cmd=cmd[:-1];
                 cmd+=')'            
 
+
+            cmd += ';';
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
+        except Exception as e:
+            print(e);
+
+    def truncate_table(self,
+        conn,
+        schema_I = [],
+        table_name_I = [],
+        only_I = 'ONLY',
+        continueIdentity_I = True,
+        cascade_restrict_I = '',
+        verbose_I = True,
+        execute_I = True,
+        commit_I=True,
+        return_response_I=False,
+        return_cmd_I=False,
+        ):
+        '''delete table using the TRUNCATE command
+        INPUT:
+        conn,
+        schemas_I = string or list of schemas,
+        table_names_I = string or list of tables,
+        only_I = string, specify only that table is truncated and not its descendents
+        continueIdentity_I = boolean, do not change the values of sequences (Default=True)
+                             or automatically restarted sequences owned by columns of the truncated table
+        cascade_restrict_I = string
+        '''
+        try:
+            cmd='TRUNCATE ';
+            if only_I:
+                cmd+= '%s' %(only_I);
+
+            if type(table_name_I)==type(''):
+                cmd += '''"%s"."%s" ''' %(
+                    schema_I,table_name_I);
+            elif type(table_name_I)==type([]) and table_name_I:
+                for i in range(len(table_name_I)):
+                    cmd += '''"%s"."%s", ''' %(
+                        schema_I[i],table_name_I[i]);
+                cmd=cmd[:-2];
+                cmd+=' ';
+
+            if continueIdentity_I:
+                cmd+="CONTINUE IDENTITY ";
+            else:
+                cmd+="RESTART IDENTITY ";
+
+            if cascade_restrict_I:
+                cmd+= '%s ' %(cascade_restrict_I);     
+
+            cmd += ';';
+            data = execute_query(conn,
+                cmd,
+                verbose_I=verbose_I,
+                execute_I=execute_I,
+                commit_I=commit_I,
+                return_response_I=return_response_I,
+                return_cmd_I=return_cmd_I,
+                )
+            if data: return data
+        except Exception as e:
+            print(e);
+
+    def vacuum_table(self,
+        conn,
+        schema_I = '',
+        table_name_I = '',
+        vacuum_options_I = ['FULL','FREEZE','VERBOSE','ANALYZE'],
+        column_names_I = [],
+        verbose_I = True,
+        execute_I = True,
+        commit_I=True,
+        return_response_I=False,
+        return_cmd_I=False,
+        ):
+        '''vacuum tables or database
+        INPUT:
+        conn,
+        schema_I = string, schema name,
+        table_name_I = string, table name,
+        vacuum_options_I = list of string,
+            'FULL','FREEZE','VERBOSE','ANALYZE'
+        column_names_I = list of string, list of column names
+        NOTES:
+        vacuum SQL command can handle multiple tables,
+        but the number of tables has been restricted to 1
+        in this wrapper around the command
+
+        '''
+        try:
+            cmd='VACUUM ';
+
+            if vacuum_options_I:
+                cmd+='(';
+                for option in vacuum_options_I:
+                    cmd+='''%s, '''%(option)
+                cmd=cmd[:-2];
+                cmd+=') ';
+
+            cmd += '''"%s"."%s" ''' %(
+                schema_I,table_name_I);
+
+            if column_names_I:
+                cmd+='(';
+                for c in column_names_I:
+                    cmd+='''"%s", '''%(c)
+                cmd=cmd[:-2];
+                cmd+=') ';  
 
             cmd += ';';
             data = execute_query(conn,
