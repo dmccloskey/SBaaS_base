@@ -663,3 +663,6 @@ class postgresql_methods(postgresql_orm):
             commit_I=True,
             return_response_I=False,
             return_cmd_I=False,);
+
+    #TODO
+    #uninherit_tablePartitions
