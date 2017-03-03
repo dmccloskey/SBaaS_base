@@ -114,7 +114,8 @@ class sbaas_base_query_select(sbaas_base):
         INPUT:
         model_I = sqlalchemy model object
         query_I = {}, query dictionary
-            select: [{'model':sqlalchemy model object,'column_name':'','aggregate_function':'','label':''},...]
+            select: [{'model':sqlalchemy model object,'column_name':'',
+                    'aggregate_function':'','label':''},...]
                 where aggregate_function = string, 'count', 'ave', 'max', 'min'
                 where label = string, equivalent to "AS"
             where: [{'model':sqlalchemy model object,'column_name':'','value':'','operator':'','connector':''},...]
