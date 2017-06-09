@@ -18,6 +18,9 @@ class postgresql_settings():
     def read_settings(self,filename_I):
         '''read settings from file'''
         config = None;
+        ##test if file exists
+        #import os.path
+        #os.path.isfile(filename_I)
         try:
             config = SafeConfigParser();
             config.read(filename_I);
